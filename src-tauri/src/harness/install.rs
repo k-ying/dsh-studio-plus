@@ -30,11 +30,16 @@ pub const PACKAGE: &str = "@deepseek-ai/dsh";
 /// including the public `dsh-code-runtime-worker-thread` package. Pinning the
 /// root keeps a newly installed machine from silently selecting an unrelated
 /// release graph.
-pub const VERSION: &str = "0.1.1-rc.2";
-pub const SPEC: &str = "@deepseek-ai/dsh@0.1.1-rc.2";
+pub const VERSION: &str = "0.1.2-rc.1";
+pub const SPEC: &str = "@deepseek-ai/dsh@0.1.2-rc.1";
 pub const PNPM_VERSION: &str = "11.7.0";
 pub const PNPM_SPEC: &str = "pnpm@11.7.0";
-const RUNTIME_SCHEMA: u8 = 2;
+
+/// The npm specifier that installs a given Harness release.
+pub fn spec_for(version: &str) -> String {
+    format!("{PACKAGE}@{version}")
+}
+const RUNTIME_SCHEMA: u8 = 3;
 const INTEGRATION_PACKAGE: &str = "@moresyl/dsh-studio-integration";
 const OFFICIAL_REGISTRY: &str = "https://registry.npmjs.org/";
 const INSTALL_IDLE_TIMEOUT: Duration = Duration::from_secs(120);
@@ -116,6 +121,9 @@ pub struct InstallPlan {
     pub target: PathBuf,
     /// Package specifier, including any version.
     pub spec: String,
+    /// The Harness release this plan installs; `VERSION` unless the channel
+    /// pins another one.
+    pub version: String,
 }
 
 impl InstallPlan {
@@ -149,16 +157,31 @@ impl InstallPlan {
     }
 
     fn to_locked_command(&self) -> Command {
+        let mut command = self.npm_command("ci");
+        // Upstream rc.8 declares React 18 and ReactDOM 19 through separate
+        // peer chains. The qualified lock records that exact working graph;
+        // asking npm to solve those peers again defeats the lock and fails.
+        command.arg("--legacy-peer-deps");
+        hide_console_window(&mut command);
+        command
+    }
+
+    /// `npm install` for a channel-pinned release, whose graph has no
+    /// qualified lock and must be resolved from the manifest.
+    fn to_install_command(&self) -> Command {
+        let mut command = self.npm_command("install");
+        command.arg("--legacy-peer-deps");
+        hide_console_window(&mut command);
+        command
+    }
+
+    fn npm_command(&self, verb: &str) -> Command {
         let mut command = Command::new(&self.node);
         command
             .arg(&self.npm_cli)
-            .arg("ci")
+            .arg(verb)
             .arg("--prefix")
             .arg(&self.target)
-            // Upstream rc.8 declares React 18 and ReactDOM 19 through separate
-            // peer chains. The qualified lock records that exact working graph;
-            // asking npm to solve those peers again defeats the lock and fails.
-            .arg("--legacy-peer-deps")
             .arg("--no-audit")
             .arg("--no-fund")
             .arg("--foreground-scripts")
@@ -204,6 +227,11 @@ pub fn plan(node: &Path, target: PathBuf, spec: String) -> Result<InstallPlan> {
         node: node.to_path_buf(),
         npm_cli,
         target,
+        version: spec
+            .rsplit_once('@')
+            .map(|(_, version)| version.to_string())
+            .filter(|version| !version.is_empty())
+            .unwrap_or_else(|| VERSION.to_string()),
         spec,
     })
 }
@@ -232,7 +260,8 @@ pub async fn run_transactional<R>(plan: &InstallPlan, report: R) -> Result<()>
 where
     R: Fn(Stream, String) + Clone + Send + 'static,
 {
-    if plan.spec != SPEC {
+    let expected = spec_for(&super::channel::selected());
+    if plan.spec != expected {
         return Err(Error::Install(
             "managed runtime install did not use the qualified Harness contract".into(),
         ));
@@ -247,7 +276,7 @@ where
 
     remove_dir_if_exists(&staging)?;
     remove_dir_if_exists(&backup)?;
-    write_journal(&journal)?;
+    write_journal(&journal, &plan.version)?;
 
     let staged_plan = InstallPlan {
         target: staging.clone(),
@@ -274,14 +303,45 @@ where
             plan.target.display()
         ))
     })?;
-    std::fs::write(plan.target.join("package.json"), RUNTIME_PACKAGE)
-        .and_then(|_| std::fs::write(plan.target.join("package-lock.json"), RUNTIME_LOCK))
-        .map_err(|cause| Error::Install(format!("could not stage the runtime lock: {cause}")))?;
+    std::fs::write(
+        plan.target.join("package.json"),
+        runtime_manifest_for(&plan.version)?,
+    )
+    .map_err(|cause| Error::Install(format!("could not stage the runtime manifest: {cause}")))?;
+    // The embedded lock describes exactly the built-in release graph. A
+    // channel-pinned release resolves its own graph instead.
+    if plan.version == VERSION {
+        std::fs::write(plan.target.join("package-lock.json"), RUNTIME_LOCK)
+            .map_err(|cause| Error::Install(format!("could not stage the runtime lock: {cause}")))?;
+    }
     stage_integration(&plan.target)?;
 
-    run_command(plan.to_locked_command(), report, "npm ci").await?;
+    if plan.version == VERSION {
+        run_command(plan.to_locked_command(), report, "npm ci").await?;
+    } else {
+        run_command(plan.to_install_command(), report, "npm install").await?;
+    }
     qualify_runtime(&plan.target)?;
     Ok(())
+}
+
+/// The runtime manifest aimed at `version`: the `@deepseek-ai/*` packages
+/// pinned to the built-in release follow the Harness in lockstep and move
+/// with it; anything at its own version (cordis-plugin-group, say) keeps it.
+fn runtime_manifest_for(version: &str) -> Result<Vec<u8>> {
+    let mut manifest: serde_json::Value = serde_json::from_slice(RUNTIME_PACKAGE)
+        .map_err(|cause| Error::Install(format!("the runtime manifest template is unreadable: {cause}")))?;
+    for section in ["dependencies", "devDependencies"] {
+        if let Some(table) = manifest.get_mut(section).and_then(|table| table.as_object_mut()) {
+            for (name, pinned) in table.iter_mut() {
+                if name.starts_with("@deepseek-ai/") && pinned.as_str() == Some(VERSION) {
+                    *pinned = serde_json::Value::String(version.to_string());
+                }
+            }
+        }
+    }
+    serde_json::to_vec_pretty(&manifest)
+        .map_err(|cause| Error::Install(format!("could not encode the runtime manifest: {cause}")))
 }
 
 async fn run_command<R>(command: Command, report: R, label: &'static str) -> Result<()>
@@ -475,85 +535,261 @@ pub fn ensure_runtime_resolver(target: &Path) -> Result<PathBuf> {
     Ok(resolver)
 }
 
+/// One textual seam the runtime qualification rewrites.
+struct Patch {
+    from: &'static str,
+    to: &'static str,
+    label: &'static str,
+}
+
+/// The directory picker's native-fork enhancements. The whole group applies
+/// or none of it does: half an enhanced picker is worse than the stock one.
+const PICKER_PATCHES: &[Patch] = &[
+    Patch {
+        from: "function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen, onClose, busy, t }) {",
+        to: "function DirectoryBrowser({ open, listDirectory, createDirectory, pickNativeDirectory, validateDirectory, onOpen, onClose, busy, t }) {",
+        label: "directory browser arguments",
+    },
+    Patch {
+        from: "\t\t\tconst [createError, setCreateError] = (0, react.useState)(null);",
+        to: "\t\t\tconst [createError, setCreateError] = (0, react.useState)(null);\n\t\t\tconst [nativePicking, setNativePicking] = (0, react.useState)(false);\n\t\t\tconst [validatingDirectory, setValidatingDirectory] = (0, react.useState)(false);",
+        label: "directory browser native state",
+    },
+    Patch {
+        from: "\t\t\tconst parentInert = busy || folderDraft !== null;\n\t\t\tconst draftPending = pathDraft !== null;",
+        to: "\t\t\tconst parentInert = busy || folderDraft !== null || nativePicking || validatingDirectory;\n\t\t\tconst openDirectory = (path) => {\n\t\t\t\tif (validateDirectory === void 0) {\n\t\t\t\t\tonOpen(path);\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tsetError(null);\n\t\t\t\tsetValidatingDirectory(true);\n\t\t\t\tvalidateDirectory(path).then((allowed) => {\n\t\t\t\t\tsetValidatingDirectory(false);\n\t\t\t\t\tif (allowed) onOpen(path);\n\t\t\t\t}, (reason) => {\n\t\t\t\t\tsetValidatingDirectory(false);\n\t\t\t\t\tsetError(failureText(reason));\n\t\t\t\t});\n\t\t\t};\n\t\t\tconst pickFromSystem = () => {\n\t\t\t\tif (pickNativeDirectory === void 0) return;\n\t\t\t\tsetError(null);\n\t\t\t\tsetNativePicking(true);\n\t\t\t\tpickNativeDirectory().then((path) => {\n\t\t\t\t\tsetNativePicking(false);\n\t\t\t\t\tif (path !== null) openDirectory(path);\n\t\t\t\t}, (reason) => {\n\t\t\t\t\tsetNativePicking(false);\n\t\t\t\t\tsetError(failureText(reason));\n\t\t\t\t});\n\t\t\t};\n\t\t\tconst draftPending = pathDraft !== null;",
+        label: "directory browser native actions",
+    },
+    Patch {
+        from: "\t\t\t\t\tif (folderDraft === null && !busy) onClose();",
+        to: "\t\t\t\t\tif (!parentInert) onClose();",
+        label: "directory browser close guard",
+    },
+    Patch {
+        from: "\t\t\t\t\t\t\t\t(0, react_jsx_runtime.jsxs)(\"button\", {\n\t\t\t\t\t\t\t\t\ttype: \"button\",\n\t\t\t\t\t\t\t\t\tclassName: clsx(DirectoryBrowser_module_css_default.showHiddenToggle, showHidden && DirectoryBrowser_module_css_default.showHiddenToggleActive),",
+        to: "\t\t\t\t\t\t\t\tpickNativeDirectory !== void 0 && (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {\n\t\t\t\t\t\t\t\t\tvariant: \"outline\",\n\t\t\t\t\t\t\t\t\ticon: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpen16, { size: 16 }),\n\t\t\t\t\t\t\t\t\tdisabled: parentInert,\n\t\t\t\t\t\t\t\t\tonClick: pickFromSystem,\n\t\t\t\t\t\t\t\t\tchildren: t(\"browser.nativePicker\")\n\t\t\t\t\t\t\t\t}),\n\t\t\t\t\t\t\t\t(0, react_jsx_runtime.jsxs)(\"button\", {\n\t\t\t\t\t\t\t\t\ttype: \"button\",\n\t\t\t\t\t\t\t\t\tclassName: clsx(DirectoryBrowser_module_css_default.showHiddenToggle, showHidden && DirectoryBrowser_module_css_default.showHiddenToggleActive),",
+        label: "directory browser native button",
+    },
+    Patch {
+        from: "if (targetPath !== null) onOpen(targetPath);",
+        to: "if (targetPath !== null) openDirectory(targetPath);",
+        label: "directory browser open validation",
+    },
+    Patch {
+        from: "\t\t\t\tcreateDirectory: props.createDirectory,\n\t\t\t\tt: props.t,",
+        to: "\t\t\t\tcreateDirectory: props.createDirectory,\n\t\t\t\tpickNativeDirectory: props.pickNativeDirectory,\n\t\t\t\tvalidateDirectory: props.validateDirectory,\n\t\t\t\tt: props.t,",
+        label: "browse flow native properties",
+    },
+    Patch {
+        from: "\"browser.showHidden\": \"显示隐藏文件\"",
+        to: "\"browser.showHidden\": \"显示隐藏文件\",\n\t\t\t\t\t\"browser.nativePicker\": \"使用系统选择文件夹\"",
+        label: "Chinese directory picker copy",
+    },
+    Patch {
+        from: "\"browser.showHidden\": \"Show hidden files\"",
+        to: "\"browser.showHidden\": \"Show hidden files\",\n\t\t\t\t\t\"browser.nativePicker\": \"Choose with system dialog\"",
+        label: "English directory picker copy",
+    },
+    Patch {
+        from: "\t\t\t\tcreateDirectory: (path, name) => ctx.uiWorkspace.createDirectory(path, name),\n\t\t\t\tt: ctx.locale.bind(LOCALE_NS)",
+        to: "\t\t\t\tcreateDirectory: (path, name) => ctx.uiWorkspace.createDirectory(path, name),\n\t\t\t\tpickNativeDirectory: typeof window.__DSH_DESKTOP_PICK_DIRECTORY__ === \"function\" ? () => window.__DSH_DESKTOP_PICK_DIRECTORY__() : void 0,\n\t\t\t\tvalidateDirectory: typeof window.__DSH_DESKTOP_VALIDATE_DIRECTORY__ === \"function\" ? (path) => window.__DSH_DESKTOP_VALIDATE_DIRECTORY__(path) : void 0,\n\t\t\t\tt: ctx.locale.bind(LOCALE_NS)",
+        label: "directory picker desktop injection",
+    },
+];
+
+/// The browser-session exemption every Studio frame depends on. The Harness
+/// 0.1.2 fence mints a SameSite cookie the shell's frame can never present
+/// back, so a Studio-launched harness (DSH_DESKTOP is set by the supervisor)
+/// treats every loopback caller as authenticated — exactly the exposure 0.1.1
+/// shipped with. A dsh launched from a terminal has no such variable and
+/// keeps the fence. Required: without it the frame gets a 401.
+const CONNECTION_PATCHES: &[Patch] = &[Patch {
+    from: "\tisAuthenticated(request) {\n\t\tconst authority = requestAuthority(request.headers);",
+    to: "\tisAuthenticated(request) {\n\t\tif (process.env.DSH_DESKTOP !== void 0) return true;\n\t\tconst authority = requestAuthority(request.headers);",
+    label: "browser session desktop exemption",
+}];
+
+/// Whether every seam of a patch group is present (or already applied) exactly
+/// once — the preflight question, answered without touching anything.
+fn group_applies(body: &str, patches: &[Patch]) -> bool {
+    patches.iter().all(|patch| {
+        body.matches(patch.to).count() == 1 || body.matches(patch.from).count() == 1
+    })
+}
+
+fn apply_group(body: String, patches: &[Patch]) -> Result<String> {
+    let mut body = body;
+    for patch in patches {
+        body = replace_once(body, patch.from, patch.to, patch.label)?;
+    }
+    Ok(body)
+}
+
+/// How a Harness release answers Studio's patches before anyone installs it.
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Preflight {
+    pub version: String,
+    /// The required browser-session exemption applies.
+    pub connection: bool,
+    /// The optional directory-picker enhancement group applies.
+    pub picker: bool,
+}
+
+/// Answer preflight from already-fetched package bodies — pure, and the exact
+/// same data the installer itself applies.
+pub fn preflight_bodies(version: &str, connection_body: &str, picker_body: &str) -> Preflight {
+    Preflight {
+        version: version.to_string(),
+        connection: group_applies(connection_body, CONNECTION_PATCHES),
+        picker: group_applies(picker_body, PICKER_PATCHES),
+    }
+}
+
+/// Download just the two patched packages of `version` and check their seams,
+/// so the settings panel can say what a switch would look like before the
+/// installer ever runs.
+pub async fn preflight(node: &Path, npm_cli: &Path, version: &str) -> Result<Preflight> {
+    let scratch = std::env::temp_dir().join(format!("dsh-studio-preflight-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    std::fs::create_dir_all(&scratch)
+        .map_err(|cause| Error::Install(format!("could not stage the preflight probe: {cause}")))?;
+    let probe = async {
+        let connection_body = pack_member(
+            node,
+            npm_cli,
+            &scratch,
+            &format!("@deepseek-ai/dsh-client-connection@{version}"),
+            "lib/index.js",
+        )
+        .await?;
+        let picker_body = pack_member(
+            node,
+            npm_cli,
+            &scratch,
+            &format!("@deepseek-ai/dsh-client-ui-directory-picker-browse@{version}"),
+            "lib/client.js",
+        )
+        .await?;
+        Ok(preflight_bodies(version, &connection_body, &picker_body))
+    };
+    let outcome = probe.await;
+    let _ = std::fs::remove_dir_all(&scratch);
+    outcome
+}
+
+/// `npm pack` one package into `scratch` and read a single member out of the
+/// tarball, without unpacking anything else.
+async fn pack_member(
+    node: &Path,
+    npm_cli: &Path,
+    scratch: &Path,
+    spec: &str,
+    member: &str,
+) -> Result<String> {
+    let mut command = Command::new(node);
+    command
+        .arg(npm_cli)
+        .arg("pack")
+        .arg(spec)
+        .arg("--pack-destination")
+        .arg(scratch)
+        .arg(format!("--registry={OFFICIAL_REGISTRY}"))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
+    hide_console_window(&mut command);
+    let finished = tokio::time::timeout(Duration::from_secs(90), command.output())
+        .await
+        .map_err(|_| Error::Network(format!("npm pack {spec} timed out")))?
+        .map_err(|cause| Error::Network(format!("could not run npm pack: {cause}")))?;
+    if !finished.status.success() {
+        return Err(Error::Network(format!(
+            "npm pack {spec} failed: {}",
+            String::from_utf8_lossy(&finished.stderr).trim()
+        )));
+    }
+    let tarball = std::fs::read_dir(scratch)
+        .map_err(|cause| Error::Network(format!("the pack destination vanished: {cause}")))?
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .find(|path| path.extension().is_some_and(|ext| ext == "tgz"))
+        .ok_or_else(|| Error::Network(format!("npm pack {spec} left no tarball")))?;
+    let member_path = format!("package/{member}");
+    let file = std::fs::File::open(&tarball)
+        .map_err(|cause| Error::Network(format!("the packed tarball could not be read: {cause}")))?;
+    let decoded = flate2::read::GzDecoder::new(std::io::BufReader::new(file));
+    let mut archive = tar::Archive::new(decoded);
+    let mut entries = archive
+        .entries()
+        .map_err(|cause| Error::Network(format!("the packed tarball is unreadable: {cause}")))?;
+    for entry in entries.by_ref() {
+        let mut entry =
+            entry.map_err(|cause| Error::Network(format!("a packed member is unreadable: {cause}")))?;
+        let matches = entry
+            .path()
+            .map(|path| path == std::path::Path::new(&member_path))
+            .unwrap_or(false);
+        if matches {
+            let mut body = String::new();
+            std::io::Read::read_to_string(&mut entry, &mut body).map_err(|cause| {
+                Error::Network(format!("the packed member could not be read: {cause}"))
+            })?;
+            std::fs::remove_file(&tarball).ok();
+            return Ok(body);
+        }
+    }
+    Err(Error::Network(format!(
+        "the packed {spec} has no {member}"
+    )))
+}
+
 fn qualify_runtime(target: &Path) -> Result<()> {
+    let mut degraded: Vec<&str> = Vec::new();
+
     let client = target
         .join("node_modules/@deepseek-ai/dsh-client-ui-directory-picker-browse/lib/client.js");
-    let mut body = crate::bounded_file::read_string(&client, crate::bounded_file::CONTROL_BYTES)
+    let body = crate::bounded_file::read_string(&client, crate::bounded_file::CONTROL_BYTES)
         .map_err(|cause| {
             Error::Install(format!(
                 "the qualified directory picker could not be read safely: {cause}"
             ))
         })?;
+    if group_applies(&body, PICKER_PATCHES) {
+        std::fs::write(&client, apply_group(body, PICKER_PATCHES)?).map_err(|cause| {
+            Error::Install(format!(
+                "the qualified directory picker could not be written: {cause}"
+            ))
+        })?;
+    } else {
+        // Optional enhancement: the stock picker still works, and the marker
+        // records what the frame is missing so the contract tolerates it.
+        degraded.push("directory picker");
+    }
 
-    body = replace_once(
-        body,
-        "function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen, onClose, busy, t }) {",
-        "function DirectoryBrowser({ open, listDirectory, createDirectory, pickNativeDirectory, validateDirectory, onOpen, onClose, busy, t }) {",
-        "directory browser arguments",
-    )?;
-    body = replace_once(
-        body,
-        "\t\t\tconst [createError, setCreateError] = (0, react.useState)(null);",
-        "\t\t\tconst [createError, setCreateError] = (0, react.useState)(null);\n\t\t\tconst [nativePicking, setNativePicking] = (0, react.useState)(false);\n\t\t\tconst [validatingDirectory, setValidatingDirectory] = (0, react.useState)(false);",
-        "directory browser native state",
-    )?;
-    body = replace_once(
-        body,
-        "\t\t\tconst parentInert = busy || folderDraft !== null;\n\t\t\tconst draftPending = pathDraft !== null;",
-        "\t\t\tconst parentInert = busy || folderDraft !== null || nativePicking || validatingDirectory;\n\t\t\tconst openDirectory = (path) => {\n\t\t\t\tif (validateDirectory === void 0) {\n\t\t\t\t\tonOpen(path);\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tsetError(null);\n\t\t\t\tsetValidatingDirectory(true);\n\t\t\t\tvalidateDirectory(path).then((allowed) => {\n\t\t\t\t\tsetValidatingDirectory(false);\n\t\t\t\t\tif (allowed) onOpen(path);\n\t\t\t\t}, (reason) => {\n\t\t\t\t\tsetValidatingDirectory(false);\n\t\t\t\t\tsetError(failureText(reason));\n\t\t\t\t});\n\t\t\t};\n\t\t\tconst pickFromSystem = () => {\n\t\t\t\tif (pickNativeDirectory === void 0) return;\n\t\t\t\tsetError(null);\n\t\t\t\tsetNativePicking(true);\n\t\t\t\tpickNativeDirectory().then((path) => {\n\t\t\t\t\tsetNativePicking(false);\n\t\t\t\t\tif (path !== null) openDirectory(path);\n\t\t\t\t}, (reason) => {\n\t\t\t\t\tsetNativePicking(false);\n\t\t\t\t\tsetError(failureText(reason));\n\t\t\t\t});\n\t\t\t};\n\t\t\tconst draftPending = pathDraft !== null;",
-        "directory browser native actions",
-    )?;
-    body = replace_once(
-        body,
-        "\t\t\t\t\tif (folderDraft === null && !busy) onClose();",
-        "\t\t\t\t\tif (!parentInert) onClose();",
-        "directory browser close guard",
-    )?;
-    body = replace_once(
-        body,
-        "\t\t\t\t\t\t\t\t(0, react_jsx_runtime.jsxs)(\"button\", {\n\t\t\t\t\t\t\t\t\ttype: \"button\",\n\t\t\t\t\t\t\t\t\tclassName: clsx(DirectoryBrowser_module_css_default.showHiddenToggle, showHidden && DirectoryBrowser_module_css_default.showHiddenToggleActive),",
-        "\t\t\t\t\t\t\t\tpickNativeDirectory !== void 0 && (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {\n\t\t\t\t\t\t\t\t\tvariant: \"outline\",\n\t\t\t\t\t\t\t\t\ticon: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconFolderOpen16, { size: 16 }),\n\t\t\t\t\t\t\t\t\tdisabled: parentInert,\n\t\t\t\t\t\t\t\t\tonClick: pickFromSystem,\n\t\t\t\t\t\t\t\t\tchildren: t(\"browser.nativePicker\")\n\t\t\t\t\t\t\t\t}),\n\t\t\t\t\t\t\t\t(0, react_jsx_runtime.jsxs)(\"button\", {\n\t\t\t\t\t\t\t\t\ttype: \"button\",\n\t\t\t\t\t\t\t\t\tclassName: clsx(DirectoryBrowser_module_css_default.showHiddenToggle, showHidden && DirectoryBrowser_module_css_default.showHiddenToggleActive),",
-        "directory browser native button",
-    )?;
-    body = replace_once(
-        body,
-        "if (targetPath !== null) onOpen(targetPath);",
-        "if (targetPath !== null) openDirectory(targetPath);",
-        "directory browser open validation",
-    )?;
-    body = replace_once(
-        body,
-        "\t\t\t\tcreateDirectory: props.createDirectory,\n\t\t\t\tt: props.t,",
-        "\t\t\t\tcreateDirectory: props.createDirectory,\n\t\t\t\tpickNativeDirectory: props.pickNativeDirectory,\n\t\t\t\tvalidateDirectory: props.validateDirectory,\n\t\t\t\tt: props.t,",
-        "browse flow native properties",
-    )?;
-    body = replace_once(
-        body,
-        "\"browser.showHidden\": \"显示隐藏文件\"",
-        "\"browser.showHidden\": \"显示隐藏文件\",\n\t\t\t\t\t\"browser.nativePicker\": \"使用系统选择文件夹\"",
-        "Chinese directory picker copy",
-    )?;
-    body = replace_once(
-        body,
-        "\"browser.showHidden\": \"Show hidden files\"",
-        "\"browser.showHidden\": \"Show hidden files\",\n\t\t\t\t\t\"browser.nativePicker\": \"Choose with system dialog\"",
-        "English directory picker copy",
-    )?;
-    body = replace_once(
-        body,
-        "\t\t\t\tcreateDirectory: (path, name) => ctx.workspaces.createDirectory(path, name),\n\t\t\t\tt: ctx.locale.bind(LOCALE_NS)",
-        "\t\t\t\tcreateDirectory: (path, name) => ctx.workspaces.createDirectory(path, name),\n\t\t\t\tpickNativeDirectory: typeof window.__DSH_DESKTOP_PICK_DIRECTORY__ === \"function\" ? () => window.__DSH_DESKTOP_PICK_DIRECTORY__() : void 0,\n\t\t\t\tvalidateDirectory: typeof window.__DSH_DESKTOP_VALIDATE_DIRECTORY__ === \"function\" ? (path) => window.__DSH_DESKTOP_VALIDATE_DIRECTORY__(path) : void 0,\n\t\t\t\tt: ctx.locale.bind(LOCALE_NS)",
-        "directory picker desktop injection",
+    let connection = target.join("node_modules/@deepseek-ai/dsh-client-connection/lib/index.js");
+    let connection_body = crate::bounded_file::read_string(&connection, crate::bounded_file::CONTROL_BYTES)
+        .map_err(|cause| {
+            Error::Install(format!(
+                "the qualified client connection could not be read safely: {cause}"
+            ))
+        })?;
+    if !group_applies(&connection_body, CONNECTION_PATCHES) {
+        return Err(Error::Install(
+            "this Harness release moved the browser-session fence, so Studio cannot qualify it — pin a supported dsh release".into(),
+        ));
+    }
+    std::fs::write(&connection, apply_group(connection_body, CONNECTION_PATCHES)?).map_err(
+        |cause| {
+            Error::Install(format!(
+                "the qualified client connection could not be written: {cause}"
+            ))
+        },
     )?;
 
-    std::fs::write(&client, body).map_err(|cause| {
-        Error::Install(format!(
-            "the qualified directory picker could not be written: {cause}"
-        ))
-    })?;
+    let marker = serde_json::json!({ "schema": RUNTIME_SCHEMA, "degraded": degraded });
     std::fs::write(
         target.join("dsh-studio-runtime.json"),
-        format!("{{\"schema\":{RUNTIME_SCHEMA}}}\n"),
+        format!("{}\n", serde_json::to_string_pretty(&marker).unwrap_or_default()),
     )
     .map_err(|cause| Error::Install(format!("could not mark the runtime contract: {cause}")))
 }
@@ -585,7 +821,7 @@ pub fn run_bundled(artifact: &crate::offline::Artifact) -> Result<()> {
     let journal = crate::paths::harness_install_journal();
     remove_dir_if_exists(&staging)?;
     remove_dir_if_exists(&backup)?;
-    write_journal(&journal)?;
+    write_journal(&journal, VERSION)?;
 
     let prepared = (|| {
         let file = crate::offline::verified_file(artifact)?;
@@ -664,7 +900,7 @@ fn recover_managed_install_inner() -> Result<bool> {
     if !journal.exists() {
         return Ok(false);
     }
-    read_journal(&journal)?;
+    let state = read_journal(&journal)?;
 
     let live = crate::paths::harness_dir();
     let staging = crate::paths::harness_staging_dir();
@@ -681,7 +917,7 @@ fn recover_managed_install_inner() -> Result<bool> {
             ))
         })?;
         remove_dir_if_exists(&staging)?;
-    } else if runtime_version(&staging).as_deref() == Some(VERSION) {
+    } else if runtime_version(&staging).as_deref() == Some(state.version.as_str()) {
         remove_dir_if_exists(&live)?;
         std::fs::rename(&staging, &live).map_err(|cause| {
             Error::Install(format!(
@@ -719,6 +955,13 @@ pub fn runtime_version(target: &Path) -> Option<String> {
     (!version.is_empty()).then(|| version.to_string())
 }
 
+/// The release the installed runtime actually is, falling back to what the
+/// channel would install. Plugin compatibility answers about what runs, not
+/// about what the build pinned.
+pub fn current_version() -> String {
+    runtime_version(&crate::paths::harness_dir()).unwrap_or_else(|| super::channel::selected())
+}
+
 /// Whether the installed runtime is exactly the family this application tested.
 pub fn runtime_compatible(target: &Path) -> bool {
     runtime_contract_failures(target).is_empty()
@@ -754,13 +997,30 @@ fn integration_entry(target: &Path) -> PathBuf {
 }
 
 fn runtime_schema(target: &Path) -> Option<u8> {
+    runtime_marker(target).map(|(schema, _)| schema)
+}
+
+/// The contract marker left by qualification: its schema and the optional
+/// enhancement groups that release could not take.
+fn runtime_marker(target: &Path) -> Option<(u8, Vec<String>)> {
     let raw = crate::bounded_file::read_string(
         &target.join("dsh-studio-runtime.json"),
         crate::bounded_file::CONTROL_BYTES,
     )
     .ok()?;
     let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
-    value.get("schema")?.as_u64()?.try_into().ok()
+    let schema = value.get("schema")?.as_u64()?.try_into().ok()?;
+    let degraded = value
+        .get("degraded")
+        .and_then(|degraded| degraded.as_array())
+        .map(|degraded| {
+            degraded
+                .iter()
+                .filter_map(|entry| entry.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    Some((schema, degraded))
 }
 
 fn qualified_picker(target: &Path) -> bool {
@@ -775,13 +1035,22 @@ fn qualified_picker(target: &Path) -> bool {
     })
 }
 
+fn qualified_connection(target: &Path) -> bool {
+    crate::bounded_file::read_string(
+        &target.join("node_modules/@deepseek-ai/dsh-client-connection/lib/index.js"),
+        crate::bounded_file::CONTROL_BYTES,
+    )
+    .is_ok_and(|body| body.contains("process.env.DSH_DESKTOP !== void 0"))
+}
+
 fn require_expected_runtime(target: &Path) -> Result<()> {
     let actual = runtime_version(target).unwrap_or_else(|| "missing".to_string());
     let actual_pnpm = pnpm_version(target).unwrap_or_else(|| "missing".to_string());
+    let expected = super::channel::selected();
     let failures = runtime_contract_failures(target);
     if !failures.is_empty() {
         return Err(Error::Install(format!(
-            "npm finished but the verified runtime is not Studio contract {RUNTIME_SCHEMA} with {PACKAGE}@{VERSION}, {INTEGRATION_PACKAGE}, and pnpm {PNPM_VERSION} (found {actual} with pnpm {actual_pnpm}; failed: {})",
+            "npm finished but the verified runtime is not Studio contract {RUNTIME_SCHEMA} with {PACKAGE}@{expected}, {INTEGRATION_PACKAGE}, and pnpm {PNPM_VERSION} (found {actual} with pnpm {actual_pnpm}; failed: {})",
             failures.join(", ")
         )));
     }
@@ -790,7 +1059,7 @@ fn require_expected_runtime(target: &Path) -> Result<()> {
 
 fn runtime_contract_failures(target: &Path) -> Vec<&'static str> {
     let mut failures = Vec::new();
-    if runtime_version(target).as_deref() != Some(VERSION) {
+    if runtime_version(target).as_deref() != Some(super::channel::selected().as_str()) {
         failures.push("Harness version");
     }
     if !entry(target).is_file() {
@@ -802,19 +1071,26 @@ fn runtime_contract_failures(target: &Path) -> Vec<&'static str> {
     if !pnpm_entry(target).is_file() {
         failures.push("pnpm entry point");
     }
-    if runtime_schema(target) != Some(RUNTIME_SCHEMA) {
+    let marker = runtime_marker(target);
+    if marker.as_ref().map(|(schema, _)| *schema) != Some(RUNTIME_SCHEMA) {
         failures.push("runtime marker");
     }
     if !integration_entry(target).is_file() {
         failures.push("Studio integration");
     }
-    if !qualified_picker(target) {
+    let picker_excused = marker
+        .map(|(_, degraded)| degraded.iter().any(|group| group == "directory picker"))
+        .unwrap_or(false);
+    if !picker_excused && !qualified_picker(target) {
         failures.push("qualified directory picker");
+    }
+    if !qualified_connection(target) {
+        failures.push("qualified client connection");
     }
     failures
 }
 
-fn write_journal(path: &Path) -> Result<()> {
+fn write_journal(path: &Path, version: &str) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|cause| {
             Error::Install(format!(
@@ -825,7 +1101,7 @@ fn write_journal(path: &Path) -> Result<()> {
     let journal = InstallJournal {
         schema: JOURNAL_VERSION,
         package: PACKAGE.to_string(),
-        version: VERSION.to_string(),
+        version: version.to_string(),
     };
     let body = serde_json::to_vec_pretty(&journal)
         .map_err(|cause| Error::Install(format!("could not encode install state: {cause}")))?;
@@ -981,11 +1257,12 @@ mod tests {
     use tokio::process::Command;
 
     use super::{
-        ensure_runtime_resolver, npm_cli_candidates, qualify_runtime, remove_dir_if_exists,
-        replace_once, require_expected_runtime, run_command_with_limits, runtime_compatible,
-        runtime_version, InstallPlan, INTEGRATION_PACKAGE, INTEGRATION_RESOLVER, OFFICIAL_REGISTRY,
-        PACKAGE, PNPM_SPEC, PNPM_VERSION, RUNTIME_LOCK, RUNTIME_PACKAGE, RUNTIME_SCHEMA, SPEC,
-        VERSION,
+        apply_group, ensure_runtime_resolver, group_applies, npm_cli_candidates, preflight_bodies,
+        qualify_runtime, remove_dir_if_exists, replace_once, require_expected_runtime,
+        run_command_with_limits, runtime_compatible, runtime_manifest_for, runtime_version,
+        InstallPlan, CONNECTION_PATCHES, INTEGRATION_PACKAGE, INTEGRATION_RESOLVER,
+        OFFICIAL_REGISTRY, PACKAGE, PNPM_SPEC, PNPM_VERSION, RUNTIME_LOCK, RUNTIME_PACKAGE,
+        RUNTIME_SCHEMA, SPEC, VERSION,
     };
 
     fn write_runtime(root: &Path, version: &str, entry: bool) {
@@ -1019,6 +1296,11 @@ mod tests {
             "__DSH_DESKTOP_PICK_DIRECTORY__ __DSH_DESKTOP_VALIDATE_DIRECTORY__",
         )
         .expect("qualified picker");
+        let connection = root.join("node_modules/@deepseek-ai/dsh-client-connection/lib/index.js");
+        fs::create_dir_all(connection.parent().expect("connection parent"))
+            .expect("connection directory");
+        fs::write(connection, "process.env.DSH_DESKTOP !== void 0")
+            .expect("qualified connection");
         fs::write(
             root.join("dsh-studio-runtime.json"),
             format!(r#"{{"schema":{RUNTIME_SCHEMA}}}"#),
@@ -1032,6 +1314,45 @@ mod tests {
         assert!(!SPEC.ends_with("@latest"));
         assert!(!VERSION.starts_with(['^', '~']));
         assert_eq!(PNPM_SPEC, format!("pnpm@{PNPM_VERSION}"));
+    }
+
+    #[test]
+    fn the_manifest_template_moves_only_lockstep_packages() {
+        let manifest = runtime_manifest_for("0.1.5-rc.1").expect("manifest");
+        let parsed: serde_json::Value = serde_json::from_slice(&manifest).expect("manifest json");
+        let dependencies = parsed
+            .get("dependencies")
+            .and_then(|table| table.as_object())
+            .expect("dependencies");
+        let lockstep = dependencies
+            .iter()
+            .filter(|(name, _)| name.starts_with("@deepseek-ai/"))
+            .count();
+        let moved = dependencies
+            .iter()
+            .filter(|(name, pinned)| {
+                name.starts_with("@deepseek-ai/") && pinned.as_str() == Some("0.1.5-rc.1")
+            })
+            .count();
+        // Every lockstep package moved except the one at its own version.
+        assert_eq!(moved + 1, lockstep);
+        assert_eq!(
+            dependencies
+                .get("@deepseek-ai/cordis-plugin-group")
+                .and_then(|pinned| pinned.as_str()),
+            Some("1.0.2")
+        );
+    }
+
+    #[test]
+    fn preflight_reads_the_same_seams_the_installer_applies() {
+        let connection = "\tisAuthenticated(request) {\n\t\tconst authority = requestAuthority(request.headers);\n}";
+        let report = preflight_bodies("x", connection, "no picker seams here");
+        assert!(report.connection);
+        assert!(!report.picker);
+        let applied = apply_group(connection.to_string(), CONNECTION_PATCHES).expect("applied");
+        assert!(applied.contains("process.env.DSH_DESKTOP !== void 0"));
+        assert!(group_applies(&applied, CONNECTION_PATCHES));
     }
 
     #[test]
@@ -1070,6 +1391,7 @@ mod tests {
             npm_cli: Path::new("npm-cli.js").to_path_buf(),
             target: Path::new("runtime").to_path_buf(),
             spec: SPEC.to_string(),
+            version: VERSION.to_string(),
         };
         let locked = plan.to_locked_command();
         let arguments = locked
@@ -1288,11 +1610,21 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(target.parent().expect("picker parent")).expect("picker directory");
         fs::copy(source, &target).expect("copy locked picker");
+        let connection = root.join("node_modules/@deepseek-ai/dsh-client-connection/lib/index.js");
+        fs::create_dir_all(connection.parent().expect("connection parent"))
+            .expect("connection directory");
+        fs::write(
+            &connection,
+            "\tisAuthenticated(request) {\n\t\tconst authority = requestAuthority(request.headers);\n",
+        )
+        .expect("connection fixture");
 
         qualify_runtime(&root).expect("qualify locked picker");
         let patched = fs::read_to_string(target).expect("patched picker");
         assert!(patched.contains("__DSH_DESKTOP_PICK_DIRECTORY__"));
         assert!(patched.contains("openDirectory(targetPath)"));
+        let connection = fs::read_to_string(connection).expect("patched connection");
+        assert!(connection.contains("process.env.DSH_DESKTOP !== void 0"));
         let _ = fs::remove_dir_all(root);
     }
 

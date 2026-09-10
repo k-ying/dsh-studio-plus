@@ -145,7 +145,7 @@ impl LaunchPlan {
             // into a read-only Host contract. Plugins never receive a native
             // handle, arbitrary command runner, or package-manager authority.
             .env("DSH_STUDIO_VERSION", env!("CARGO_PKG_VERSION"))
-            .env("DSH_STUDIO_RUNTIME_VERSION", super::install::VERSION)
+            .env("DSH_STUDIO_RUNTIME_VERSION", super::channel::selected())
             .env("DSH_STUDIO_PROFILE", &self.profile)
             .env("DSH_HOME", crate::paths::dsh_home())
             .env(

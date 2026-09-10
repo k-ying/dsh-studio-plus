@@ -244,6 +244,65 @@ async fn perform_install(
     Ok(())
 }
 
+/// The channel snapshot the settings panel renders: what would be installed,
+/// what is installed, and what the registry last said exists.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelStatus {
+    pub selected: String,
+    pub installed: Option<String>,
+    pub builtin: String,
+    pub pinned: Option<String>,
+    pub known: Vec<String>,
+    pub latest: Option<String>,
+    pub update_available: Option<String>,
+}
+
+/// Read the channel state without touching the network.
+#[tauri::command]
+pub fn dsh_channel() -> ChannelStatus {
+    let channel = super::channel::load();
+    let installed = install::runtime_version(&crate::paths::harness_dir());
+    ChannelStatus {
+        selected: super::channel::selected(),
+        update_available: super::channel::update_available(&channel, installed.as_deref()),
+        installed,
+        builtin: install::VERSION.to_string(),
+        pinned: channel.pinned.clone(),
+        known: channel.known.clone(),
+        latest: channel.latest.clone(),
+    }
+}
+
+/// Ask the registry what Harness releases exist and record the answer.
+#[tauri::command]
+pub async fn dsh_channel_refresh(state: State<'_, AppState>) -> Result<ChannelStatus> {
+    let _ = state;
+    let environment = super::environment();
+    let node = environment.node.ok_or(Error::NoNodeRuntime {
+        minimum: node_runtime::MINIMUM_SUPPORTED,
+    })?;
+    super::channel::refresh(&node.path).await?;
+    Ok(dsh_channel())
+}
+
+/// Pin a registry release — or pass `None` to return to the built-in one.
+/// The next install is what performs the switch.
+#[tauri::command]
+pub fn dsh_channel_pin(version: Option<String>) -> Result<ChannelStatus> {
+    super::channel::pin(version)?;
+    Ok(dsh_channel())
+}
+
+/// Check a release's patch seams before anyone commits the runtime to it.
+#[tauri::command]
+pub async fn dsh_preflight(version: String) -> Result<install::Preflight> {
+    let environment = super::environment();
+    let node = super::npm_capable_node(&environment)?;
+    let npm_cli = install::npm_cli(&node).ok_or(Error::NpmMissing)?;
+    install::preflight(&node, &npm_cli, &version).await
+}
+
 /// Output buffered since launch, so a late-opened log panel is not empty.
 #[tauri::command]
 pub fn harness_log(state: State<'_, AppState>) -> Vec<LogLine> {

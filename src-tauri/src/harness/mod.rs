@@ -1,5 +1,6 @@
 //! Everything about running the DeepSeek Harness as a supervised local service.
 
+pub mod channel;
 pub mod commands;
 pub mod composition;
 pub mod health;
@@ -65,7 +66,7 @@ pub fn environment() -> Environment {
         harness_installed,
         harness_compatible,
         harness_version,
-        expected_harness_version: install::VERSION.to_string(),
+        expected_harness_version: channel::selected(),
         harness_problem,
         harness_entry,
         workspace,
@@ -105,7 +106,7 @@ fn launch_plan_for_profile(
                 .harness_version
                 .as_deref()
                 .unwrap_or("unknown"),
-            install::VERSION
+            channel::selected()
         )));
     }
     if environment.workspace_admission.blocked() {
@@ -146,9 +147,11 @@ fn launch_plan_for_profile(
     })
 }
 
-/// Work out how to install — or reinstall at the latest release — the harness.
-pub fn install_plan() -> Result<InstallPlan> {
-    let environment = environment();
+/// The Node runtime that can drive npm: the selected one when it can, else
+/// the newest complete installation. Launching only needs Node, but anything
+/// that runs npm needs that exact runtime's npm — a newer Node-only package
+/// must not hide an older complete installation.
+pub fn npm_capable_node(environment: &Environment) -> Result<PathBuf> {
     let supported = environment
         .all_node_runtimes
         .iter()
@@ -159,8 +162,6 @@ pub fn install_plan() -> Result<InstallPlan> {
             minimum: node_runtime::MINIMUM_SUPPORTED,
         });
     }
-    // Launching only needs Node, but installing needs that exact runtime's npm.
-    // A newer Node-only package must not hide an older complete installation.
     let selected = environment.node.as_ref().map(|node| node.path.as_path());
     let node = selected
         .and_then(|path| {
@@ -175,6 +176,17 @@ pub fn install_plan() -> Result<InstallPlan> {
                 .find(|install| install::npm_cli(&install.path).is_some())
         })
         .ok_or(Error::NpmMissing)?;
+    Ok(node.path.clone())
+}
 
-    install::plan(&node.path, paths::harness_dir(), install::SPEC.to_string())
+/// Work out how to install — or reinstall at the latest release — the harness.
+pub fn install_plan() -> Result<InstallPlan> {
+    let environment = environment();
+    let node = npm_capable_node(&environment)?;
+
+    install::plan(
+        &node,
+        paths::harness_dir(),
+        install::spec_for(&channel::selected()),
+    )
 }

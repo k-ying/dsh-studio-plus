@@ -5,7 +5,7 @@ window.__ModuleLoader__.load({
     const exports = module.exports
     Object.defineProperty(exports, Symbol.toStringTag, { value: 'Module' })
 
-    const inject = ['workspaces']
+    const inject = ['workspaces', 'uiWorkspace']
 
     function apply(ctx) {
       const desktop = window.dshStudio
@@ -15,8 +15,9 @@ window.__ModuleLoader__.load({
         void desktop.workspace.validate(path).then((review) => {
           if (!review.allowed) throw new Error(review.reason || 'DSH Studio rejected this workspace')
           return ctx.workspaces.create({ path })
-        }).then((workspace) => {
-          ctx.workspaces.startSession(workspace.workspaceId)
+        }).then((result) => {
+          if (!result || result.ok !== true) throw new Error((result && result.error && result.error.message) || 'Workspace could not be created')
+          ctx.uiWorkspace.startSession(result.value.workspace.workspaceId)
         }).catch((reason) => {
           const body = reason instanceof Error ? reason.message : String(reason)
           void desktop.notify({ title: 'Workspace could not be added', body }).catch(() => {})

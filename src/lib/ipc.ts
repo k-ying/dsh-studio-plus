@@ -94,6 +94,34 @@ export const stop = (): Promise<void> => invoke('harness_stop')
 /** Install the harness, or replace it with the latest release. */
 export const install = (): Promise<void> => invoke('harness_install')
 
+/** Which Harness release the managed runtime tracks. */
+export interface ChannelStatus {
+  selected: string
+  installed: string | null
+  builtin: string
+  pinned: string | null
+  known: string[]
+  latest: string | null
+  updateAvailable: string | null
+}
+
+/** How a Harness release answers Studio's patches before anyone installs it. */
+export interface Preflight {
+  version: string
+  connection: boolean
+  picker: boolean
+}
+
+export const dshChannel = (): Promise<ChannelStatus> => invoke('dsh_channel')
+
+export const dshChannelRefresh = (): Promise<ChannelStatus> => invoke('dsh_channel_refresh')
+
+export const dshChannelPin = (version: string | null): Promise<ChannelStatus> =>
+  invoke('dsh_channel_pin', { version })
+
+export const dshPreflight = (version: string): Promise<Preflight> =>
+  invoke('dsh_preflight', { version })
+
 export const log = (): Promise<LogLine[]> => invoke('harness_log')
 
 /** Subscribe to supervisor status changes and log output. */

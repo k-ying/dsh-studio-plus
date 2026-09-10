@@ -9,17 +9,24 @@
 Rust + Tauri 2. It supervises the local `dsh` service, reclaims every process it
 spawns, and never forks the upstream project to do it.
 
-[![Release](https://img.shields.io/github/v/release/Moresyl/dsh-studio?style=flat-square&color=3560e8&label=release)](https://github.com/Moresyl/dsh-studio/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/Moresyl/dsh-studio/total?style=flat-square&color=3560e8&label=downloads)](https://github.com/Moresyl/dsh-studio/releases)
-[![CI](https://img.shields.io/github/actions/workflow/status/Moresyl/dsh-studio/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Moresyl/dsh-studio/actions/workflows/ci.yml)
-[![Stars](https://img.shields.io/github/stars/Moresyl/dsh-studio?style=flat-square&color=3560e8)](https://github.com/Moresyl/dsh-studio/stargazers)
+[![Release](https://img.shields.io/github/v/release/k-ying/dsh-studio-plus?style=flat-square&color=3560e8&label=release)](https://github.com/k-ying/dsh-studio-plus/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/k-ying/dsh-studio-plus/total?style=flat-square&color=3560e8&label=downloads)](https://github.com/k-ying/dsh-studio-plus/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/k-ying/dsh-studio-plus/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/k-ying/dsh-studio-plus/actions/workflows/ci.yml)
+[![Stars](https://img.shields.io/github/stars/k-ying/dsh-studio-plus?style=flat-square&color=3560e8)](https://github.com/k-ying/dsh-studio-plus/stargazers)
 [![License](https://img.shields.io/badge/license-MIT-3560e8?style=flat-square)](LICENSE)
 
-[![Download for Windows](https://img.shields.io/badge/Windows-.exe%20%C2%B7%20.msi-3560e8?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Moresyl/dsh-studio/releases/latest)
-[![Download for macOS](https://img.shields.io/badge/macOS-.dmg-1c1c1e?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Moresyl/dsh-studio/releases/latest)
-[![Download for Linux](https://img.shields.io/badge/Linux-.AppImage%20%C2%B7%20.deb%20%C2%B7%20.rpm-0e9e74?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/Moresyl/dsh-studio/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Windows-.exe%20%C2%B7%20.msi-3560e8?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/k-ying/dsh-studio-plus/releases/latest)
+[![Download for macOS](https://img.shields.io/badge/macOS-.dmg-1c1c1e?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/k-ying/dsh-studio-plus/releases/latest)
+[![Download for Linux](https://img.shields.io/badge/Linux-.AppImage%20%C2%B7%20.deb%20%C2%B7%20.rpm-0e9e74?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/k-ying/dsh-studio-plus/releases/latest)
 
 Under 4 MB per installer · [all artifacts and checksums](#install) · [简体中文](README.zh-CN.md)
+
+> **dsh-studio-plus** is a fork of [Moresyl/dsh-studio](https://github.com/Moresyl/dsh-studio)
+> that tracks current Harness releases. Upstream pins `dsh` to the one release it
+> ships against; this fork supports 0.1.2 and lets you pick the release yourself —
+> Settings → Harness runtime lists every published version, preflights the switch
+> against Studio's install-time patches, and refuses a release whose browser
+> sign-in it cannot adapt to.
 
 <br>
 
@@ -37,6 +44,24 @@ without uninstalling it.
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **⟳ Supervised, not just launched**<br>Backoff restart when it exits, and a real HTTP probe every 10 seconds to catch the harness that is alive but wedged. A restart lands on a new port and the window follows it.                   | **⛨ Nothing outlives the window**<br>Every child joins a Windows job object or a POSIX process group, so the kernel reclaims the whole tree — including the grandchildren a plain kill would orphan, and even if the shell is killed outright. |
 | **⬗ A plugin marketplace in the window**<br>Search the npm registry, see what a package declares before you commit to it, install into the hosted profile through the harness's own command. Disable a plugin without uninstalling it. | **▣ Your phone, without putting the agent on the network**<br>`dsh` stays on loopback, and that is not configurable. What opens is a separate gateway on one LAN address, paired by a QR code good for one device and two minutes.             |
+
+## What this fork adds
+
+**Harness 0.1.2 and later, with the sign-in fence intact for everyone else.**
+The 0.1.2 web surface exchanges a per-boot launch token for a SameSite cookie —
+a ceremony the shell's cross-site frame can never complete. The installer
+qualifies the connection package instead: a harness launched by Studio treats
+loopback callers as authenticated (the exposure 0.1.1 shipped with), while a
+`dsh` started from a terminal keeps the fence exactly as upstream wrote it.
+
+**A release channel instead of a pinned version.** Settings → Harness runtime
+lists every published dsh release and flags newer ones. Switching packs the two
+patched packages from the registry and checks the patch seams first: a release
+whose browser sign-in has moved is refused, and one that merely cannot take the
+native directory picker installs without it. The dependency manifest is a
+template — lockstep `@deepseek-ai/*` packages follow the selected release, and
+the embedded lockfile yields to a fresh resolution for anything but the
+built-in one.
 
 ## Why this exists
 
@@ -212,7 +237,7 @@ and are generated from a real release, so the version and the SHA-256 in them ar
 never hand-typed:
 
 ```powershell
-scoop bucket add dsh https://github.com/Moresyl/dsh-studio
+scoop bucket add dsh https://github.com/k-ying/dsh-studio-plus
 scoop install dsh-studio
 ```
 
@@ -235,7 +260,7 @@ bytes did not.
 No Node.js on the machine is fine — the app installs one for you. What changed
 between versions is in the [changelog](CHANGELOG.md).
 
-[Releases]: https://github.com/Moresyl/dsh-studio/releases
+[Releases]: https://github.com/k-ying/dsh-studio-plus/releases
 
 ## Status
 
@@ -418,9 +443,9 @@ API keys is upstream's business, not this project's.
 
 | Where                                                                                              | For                                                                                              |
 | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| [Report a bug](https://github.com/Moresyl/dsh-studio/issues/new?template=bug_report.yml)           | The form asks for the platform, the Node and the log up front — the three things triage needs.   |
-| [Ask for a feature](https://github.com/Moresyl/dsh-studio/issues/new?template=feature_request.yml) | Including "the harness can do this from a terminal and the window cannot".                       |
-| [Report something privately](https://github.com/Moresyl/dsh-studio/security/advisories/new)        | Anything about the gateway, the pairing keys, or the supervisor. See [SECURITY.md](SECURITY.md). |
+| [Report a bug](https://github.com/k-ying/dsh-studio-plus/issues/new?template=bug_report.yml)           | The form asks for the platform, the Node and the log up front — the three things triage needs.   |
+| [Ask for a feature](https://github.com/k-ying/dsh-studio-plus/issues/new?template=feature_request.yml) | Including "the harness can do this from a terminal and the window cannot".                       |
+| [Report something privately](https://github.com/k-ying/dsh-studio-plus/security/advisories/new)        | Anything about the gateway, the pairing keys, or the supervisor. See [SECURITY.md](SECURITY.md). |
 | [The harness itself](https://github.com/deepseek-ai/deepseek-harness/issues)                       | The agent, its UI, its models. This repository is only the window around it.                     |
 
 Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md)

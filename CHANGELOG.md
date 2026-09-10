@@ -9,6 +9,60 @@ pre-1.0 caveat that anything may still move.
 
 ## [Unreleased]
 
+## [0.9.22] — 2026-09-10
+
+### Added
+
+- The Harness release is no longer compiled in. Settings → Harness runtime lists
+  every published dsh release (refreshed from the npm registry on demand), shows
+  an update badge when `dist-tags/latest` moves past the installed release, and
+  switches through the ordinary supervised install flow.
+- Version switches are preflighted: the two packages Studio patches are packed
+  from the registry and their seams are checked before anything is installed. A
+  release whose browser-session fence has moved is refused; a release that merely
+  cannot take the optional directory-picker enhancement installs without it, with
+  the skipped group recorded in the runtime marker and tolerated by the contract.
+- A pinned-but-not-installed state is shown next to the selector, so a failed or
+  interrupted switch is visible instead of silent.
+
+### Changed
+
+- The embedded runtime manifest is now a template: `@deepseek-ai/*` packages that
+  follow the Harness in lockstep are rewritten to the selected release,
+  independently versioned packages keep their pins, and non-built-in releases
+  resolve their own dependency graph instead of using the embedded lockfile.
+- The managed-install guard, the install journal and crash recovery track the
+  channel-selected release rather than the built-in one.
+- Plugin compatibility is evaluated against the installed Harness release, not
+  the one this build shipped against.
+
+### Fixed
+
+- Preflight shares the installer's npm-capable Node selection; a selected Node
+  without npm no longer fails the switch before it starts.
+- The channel selector shows the built-in release when nothing is pinned, rather
+  than whatever the registry lists first.
+
+## [0.9.21] — 2026-09-07
+
+### Added
+
+- Harness 0.1.2 support. The 0.1.2 web surface exchanges a per-boot launch token
+  for a SameSite cookie that the shell's cross-site frame can never present back,
+  so the installer qualifies the connection package: a harness launched by Studio
+  (`DSH_DESKTOP`) treats loopback callers as authenticated — the exposure 0.1.1
+  shipped with. A `dsh` launched from a terminal keeps the fence.
+
+### Changed
+
+- The runtime contract targets `@deepseek-ai/dsh` 0.1.2-rc.1, including the ten
+  packages that became peer dependencies in 0.1.2.
+- The Studio integration follows the 0.1.2 workspace architecture:
+  `dsh-client-runtime` is gone, workspace creation goes through
+  `dsh-api-workspace-controller`, and session start moved to
+  `dsh-client-ui-workspace`.
+- Existing runtimes re-qualify themselves on first launch (runtime schema 3).
+
 ## [0.9.2] — 2026-08-29
 
 ### Fixed

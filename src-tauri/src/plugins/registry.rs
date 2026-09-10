@@ -251,7 +251,7 @@ fn validate_preflight(detail: &Detail) -> Result<()> {
         return Err(Error::Plugin(format!(
             "{} is not compatible with Harness {}: {reason}",
             detail.name,
-            crate::harness::install::VERSION
+            crate::harness::install::current_version()
         )));
     }
     if detail.deprecated.is_some() {
@@ -521,8 +521,8 @@ fn compatibility(manifest: &serde_json::Value) -> Compatibility {
             reason: "the package declares an unreadable peer dependency range".to_string(),
         };
     };
-    let current = semver::Version::parse(crate::harness::install::VERSION)
-        .expect("the pinned Harness version is valid semver");
+    let current = semver::Version::parse(&crate::harness::install::current_version())
+        .expect("the running Harness version is valid semver");
     if requirement_parsed.matches(&current) {
         Compatibility::Compatible {
             requirement: requirement.to_string(),
@@ -709,7 +709,7 @@ mod tests {
             &serde_json::json!({
                 "name": "@vendor/tool",
                 "version": "1.2.3",
-                "peerDependencies": { "@deepseek-ai/dsh": "^0.1.1-rc.1" }
+                "peerDependencies": { "@deepseek-ai/dsh": "^0.1.2-rc.1" }
             }),
         );
         assert_eq!(detail.install_spec, "@vendor/tool@1.2.3");
@@ -817,7 +817,7 @@ mod tests {
             &serde_json::json!({
                 "name": "safe-plugin",
                 "version": "1.2.3",
-                "peerDependencies": { "@deepseek-ai/dsh": "^0.1.1-rc.1" },
+                "peerDependencies": { "@deepseek-ai/dsh": "^0.1.2-rc.1" },
                 "dependencies": { "one": "1.0.0", "two": "2.0.0" },
                 "dsh": { "bundle": { "patch": [] } },
                 "dist": {

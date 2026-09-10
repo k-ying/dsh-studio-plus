@@ -6,6 +6,7 @@ import {
   CircleX,
   Keyboard,
   Network,
+  Package,
   Power,
   PanelsTopLeft,
   ScrollText,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/Button'
+import { HarnessChannelControl } from '@/components/HarnessChannel'
 import { PaneHeader } from '@/components/PaneHeader'
 import { Switch } from '@/components/Switch'
 import { ThemeSwitch } from '@/components/ThemeSwitch'
@@ -140,6 +142,10 @@ export function SettingsPane() {
                 <option value="extended">{t('settings.presentation.extended')}</option>
                 <option value="advanced">{t('settings.presentation.advanced')}</option>
               </select>
+            </Row>
+
+            <Row icon={Package} label={t('dsh.channel')} hint={t('dsh.channelHint')}>
+              <HarnessChannelControl />
             </Row>
 
             <Row icon={ScrollText} label={t('settings.logLevel')} hint={t('settings.logLevelHint')}>
