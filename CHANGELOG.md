@@ -9,7 +9,7 @@ pre-1.0 caveat that anything may still move.
 
 ## [Unreleased]
 
-## [0.9.23] — 2026-09-14
+## [0.9.7-plus1] — 2026-09-14
 
 ### Changed
 
@@ -948,7 +948,8 @@ CI but have not been run by a human yet.
 - **Release pipeline.** A tagged version is built by CI for Windows x64, Linux
   x64, macOS Apple Silicon and macOS Intel.
 
-[Unreleased]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.22...HEAD
+[Unreleased]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.7-plus1...HEAD
+[0.9.7-plus1]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.22...v0.9.7-plus1
 [0.9.22]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.21...v0.9.22
 [0.9.21]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.2...v0.9.21
 [0.9.4]: https://github.com/Moresyl/dsh-studio/compare/v0.9.2...v0.9.4
