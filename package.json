@@ -1,9 +1,9 @@
 {
   "name": "dsh-studio",
   "private": true,
-  "version": "0.9.22",
+  "version": "0.9.23",
   "type": "module",
-  "description": "Native desktop studio for DeepSeek Harness — Linux/macOS/Windows, built with Rust + Tauri",
+  "description": "Cross-platform DeepSeek Harness desktop studio with supervised runtime, profiles, terminals, plugin recovery, sessions and signed updates",
   "keywords": [
     "deepseek",
     "deepseek-harness",
@@ -40,16 +40,17 @@
     "verify:contracts": "node .github/scripts/verify-public-contracts.mjs",
     "verify:a11y": "node .github/scripts/verify-accessibility.mjs",
     "verify:docs": "node .github/scripts/verify-bilingual-docs.mjs",
+    "verify:website": "node .github/scripts/verify-website-docs.mjs",
     "test:packaging": "node --test .github/scripts/*.test.mjs",
-    "test:release": "node .github/scripts/release-notes.mjs && pnpm verify:contracts && pnpm verify:a11y && pnpm verify:docs && pnpm build && pnpm test:packaging && cargo test --manifest-path src-tauri/Cargo.toml --workspace && pnpm lint && pnpm test:coverage",
+    "test:release": "node .github/scripts/release-notes.mjs && pnpm verify:contracts && pnpm verify:a11y && pnpm verify:docs && pnpm verify:website && pnpm build && pnpm test:packaging && cargo test --manifest-path src-tauri/Cargo.toml --workspace && pnpm lint && pnpm test:coverage",
     "bundle:local": "tauri build --no-sign",
     "tauri": "tauri"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
-    "@tauri-apps/plugin-dialog": "^2.4.0",
-    "@tauri-apps/plugin-opener": "^2.5.0",
+    "@tauri-apps/plugin-dialog": "^2.7.3",
+    "@tauri-apps/plugin-opener": "^2.5.5",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "@xterm/addon-fit": "^0.11.0",
@@ -67,11 +68,11 @@
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.59.1",
-    "@typescript-eslint/parser": "^8.59.1",
+    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "@typescript-eslint/parser": "^8.70.0",
     "@vitejs/plugin-react": "^4.7.0",
     "@vitest/coverage-v8": "4.1.10",
-    "eslint": "^9.39.5",
+    "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.8.3",
@@ -81,5 +82,5 @@
     "vite": "^6.4.1",
     "vitest": "^4.1.5"
   },
-  "packageManager": "pnpm@10.30.2"
+  "packageManager": "pnpm@11.7.0"
 }

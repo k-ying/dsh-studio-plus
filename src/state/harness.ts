@@ -7,7 +7,6 @@
  */
 import { create } from 'zustand'
 
-import { describe } from '@/lib/errors'
 import * as ipc from '@/lib/ipc'
 import type { Environment, HarnessEvent, LogLine, NodeProgress, Status } from '@/lib/ipc'
 import { acquireTogether } from '@/lib/lifecycle'
@@ -91,7 +90,7 @@ export const useHarness = create<HarnessStore>((set, get) => ({
       // reason beside the controls that requested it. Reject as well so a
       // caller coordinating a workspace or install does not continue after a
       // refresh that never actually landed.
-      if (generation === inspectionGeneration) set({ error: describe(cause) })
+      if (generation === inspectionGeneration) set({ error: reportFailure(cause) })
       throw cause
     }
   },

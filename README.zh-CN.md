@@ -26,6 +26,8 @@ Rust + Tauri 2 编写。它托管本地 `dsh` 服务、回收服务派生出的�
 > 本分支支持 0.1.2，并允许你自己选择版本——设置 → dsh 运行时列出所有已发布版本，
 > 切换前会对 Studio 的安装期补丁做预检，无法适配鉴权改动的版本会被明确拒绝。
 
+平台与运行时边界请参阅[支持矩阵](docs/support-matrix.zh-CN.md)；启动或插件安装失败时，请先查看[故障排除指南](docs/troubleshooting.zh-CN.md)。
+
 <br>
 
 <img src="assets/plugin-install.zh.png" width="820" alt="安装一个插件：市场列表、清单、npm 输出，以及写进 harness profile 的那一层">
@@ -233,7 +235,8 @@ registry——[`packaging/README.md`](packaging/README.md) 里逐条写明了每
 
 ## 当前状态
 
-还很早期。Windows 这条路径已经端到端跑通并验证过；其余部分如实标注为未完成。
+v0.9.x 已可用于受支持的桌面工作流。Windows、Linux 和 macOS 资产均在发布矩阵中构建并测试；
+系统发布者签名与 Apple 真机验收仍作为独立的发布条件跟踪。
 
 |                                    |                                                          |
 | ---------------------------------- | -------------------------------------------------------- |
@@ -248,7 +251,7 @@ registry——[`packaging/README.md`](packaging/README.md) 里逐条写明了每
 | macOS / Linux 平台构建             | ✅ 已在平台 CI 矩阵编译与测试                            |
 | 按需拉取并校验 Node runtime        | ✅ 无需系统 Node                                         |
 | 更新签名与 `SHA256SUMS.txt`        | ✅ 强制门禁；配置平台凭据时同时签名、公证                |
-| 下载页与五条打包渠道               | ✅ Scoop 已可用；另四条已写好，尚未提交                  |
+| 下载页与五条打包渠道               | ✅ 发布流水线生成并验证全部清单                         |
 | 托盘图标、运行中关闭到托盘         | ✅                                                       |
 | 原生右键菜单、窗口位置记忆         | ✅                                                       |
 | 深色 / 浅色，可跟随系统也可不跟随  | ✅                                                       |
@@ -334,7 +337,7 @@ src-tauri/crates/
 
 ## 常见问题
 
-详细文档：[使用指南](docs/user-guide.zh-CN.md) · [故障排查](docs/troubleshooting.zh-CN.md) ·
+文档中心：[文档](docs/index.zh-CN.md) · [使用指南](docs/user-guide.zh-CN.md) · [故障排查](docs/troubleshooting.zh-CN.md) ·
 [架构](docs/architecture.zh-CN.md) · [插件与目录开发](docs/plugin-development.zh-CN.md) ·
 [插件互操作合同](docs/plugin-interoperability.zh-CN.md) · [Protocol 3 SDK](sdk/README.md) ·
 [当前路线图](docs/ROADMAP.zh-CN.md)。

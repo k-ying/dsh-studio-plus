@@ -10,6 +10,7 @@ export const BENCHMARK_HEAD = 'c52f450d'
 
 export const BILINGUAL_PAIRS = Object.freeze([
   ['README.md', 'README.zh-CN.md'],
+  ['docs/index.md', 'docs/index.zh-CN.md'],
   ['docs/architecture.md', 'docs/architecture.zh-CN.md'],
   ['docs/accessibility-acceptance.md', 'docs/accessibility-acceptance.zh-CN.md'],
   ['docs/plugin-development.md', 'docs/plugin-development.zh-CN.md'],
@@ -37,13 +38,13 @@ const CONTRACTS = Object.freeze([
   },
   {
     pair: 'docs/plugin-interoperability.md|docs/plugin-interoperability.zh-CN.md',
-    english: ['Read-only Host Protocol 1', 'unreadable-manifest'],
-    chinese: ['只读 Host Protocol 1', 'unreadable-manifest'],
+    english: ['Read-only Host Protocol 1', 'unreadable-manifest', 'DSH Studio 0.9.x'],
+    chinese: ['只读 Host Protocol 1', 'unreadable-manifest', 'DSH Studio 0.9.x'],
   },
   {
     pair: 'docs/ROADMAP.md|docs/ROADMAP.zh-CN.md',
-    english: ['dataelement/dsh-desktop', BENCHMARK_HEAD, 'v0.9.0 formal release'],
-    chinese: ['dataelement/dsh-desktop', BENCHMARK_HEAD, 'v0.9.0 正式版本'],
+    english: ['dataelement/dsh-desktop', BENCHMARK_HEAD, 'v0.9.2 formal release', 'v0.9.4'],
+    chinese: ['dataelement/dsh-desktop', BENCHMARK_HEAD, 'v0.9.2 正式版本', 'v0.9.4'],
   },
 ])
 

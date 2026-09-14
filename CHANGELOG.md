@@ -9,6 +9,16 @@ pre-1.0 caveat that anything may still move.
 
 ## [Unreleased]
 
+## [0.9.23] — 2026-09-14
+
+### Changed
+
+- Merged upstream 0.9.3 through 0.9.7: refreshed Tauri dialog/opener plugins,
+  the Node 24-compatible CI actions, task-oriented onboarding docs, the support
+  matrix and troubleshooting guides. The Harness release channel, preflight and
+  0.1.2 support from 0.9.21–0.9.22 are unaffected — upstream still pins
+  dsh 0.1.1-rc.2, so the built-in release here remains 0.1.2-rc.1.
+
 ## [0.9.22] — 2026-09-10
 
 ### Added
@@ -62,6 +72,75 @@ pre-1.0 caveat that anything may still move.
   `dsh-api-workspace-controller`, and session start moved to
   `dsh-client-ui-workspace`.
 - Existing runtimes re-qualify themselves on first launch (runtime schema 3).
+### Documentation
+
+- Reworked the English and Chinese documentation landing pages into task-oriented paths, with a five-minute first-run guide, recovery guidance, and a more useful issue-reporting checklist.
+
+## [0.9.7] — 2026-09-13
+
+### Fixed
+
+- Fixed the cross-platform runtime-contract CI job so pnpm is installed before cold profile boot.
+
+### Changed
+
+- Upgraded checkout and Node setup actions to their Node.js 24-compatible releases.
+- Added branch-run concurrency cancellation to prevent stale CI jobs from racing newer commits.
+
+### Verification
+
+- Verified the release gate across Windows, macOS and Linux, including cold runtime installation, Rust tests, accessibility, contracts, packaging and coverage.
+
+## [0.9.6] — 2026-09-13
+
+### Fixed
+
+- Fixed malformed closing markup in the bilingual download-page release labels.
+
+### Changed
+
+- Serialized release and channel metadata writers to reduce concurrent publication races.
+
+## [0.9.5] — 2026-09-12
+
+### Fixed
+
+- Preserved actionable updater errors when native cleanup also fails.
+- Bounded GitHub release metadata requests and explained timeouts on the download page.
+
+### Added
+
+- Added bilingual documentation search, shortcut guidance, and an empty state.
+- Added a platform support and verification matrix.
+
+### Changed
+
+- Improved documentation keyboard navigation and landmark semantics.
+
+### Changed
+
+- Improved documentation keyboard navigation with skip links and labelled landmarks.
+- Bounded the website's GitHub release metadata request and made its session cache optional.
+
+### Fixed
+
+- Preserved the original updater download or relaunch error when native resource cleanup also fails.
+
+## [0.9.4] — 2026-09-12
+
+### Added
+
+- Added a bilingual documentation hub with user, troubleshooting, release and roadmap entry points.
+- Added automated checks for website navigation and bilingual documentation pairs.
+
+### Changed
+
+- Improved static-site navigation, 404 handling, sitemap, robots and canonical metadata.
+
+### Fixed
+
+- Cleared stale release results after a failed manual update check so the UI cannot present an old version as current.
+- Aligned application, Tauri and Rust package version metadata to the published release.
 
 ## [0.9.2] — 2026-08-29
 
@@ -869,7 +948,10 @@ CI but have not been run by a human yet.
 - **Release pipeline.** A tagged version is built by CI for Windows x64, Linux
   x64, macOS Apple Silicon and macOS Intel.
 
-[Unreleased]: https://github.com/Moresyl/dsh-studio/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.22...HEAD
+[0.9.22]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.21...v0.9.22
+[0.9.21]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.2...v0.9.21
+[0.9.4]: https://github.com/Moresyl/dsh-studio/compare/v0.9.2...v0.9.4
 [0.9.2]: https://github.com/Moresyl/dsh-studio/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/Moresyl/dsh-studio/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Moresyl/dsh-studio/compare/v0.8.0...v0.9.0

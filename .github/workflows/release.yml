@@ -15,20 +15,28 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-publish
+  cancel-in-progress: false
+
+env:
+  # Cargo's sparse index is smaller and substantially less sensitive to
+  # transient crates.io DNS failures on macOS runners.
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  CARGO_NET_RETRY: 10
+
 jobs:
   quality:
     name: Release quality and supply-chain gate
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.7.0
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
-          cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@cargo-audit
       - name: Enforce release identity
@@ -44,7 +52,11 @@ jobs:
             exit 1
           fi
           existing_target="$(gh release view "$expected" --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq .targetCommitish 2>/dev/null || true)"
-          if [ -n "$existing_target" ] && [ "$existing_target" != "$GITHUB_SHA" ]; then
+          # A manually-created draft/release may retain `main` as targetCommitish
+          # even when the tag is already pinned to this exact commit. For tag
+          # builds, the immutable tag is the source of truth; keep the guard for
+          # genuinely conflicting commit targets.
+          if [ -n "$existing_target" ] && [ "$existing_target" != "$GITHUB_SHA" ] && [ "$existing_target" != "main" ]; then
             existing_commit="$(git rev-parse "$existing_target^{commit}" 2>/dev/null || true)"
             if [ "$existing_commit" != "$GITHUB_SHA" ]; then
               echo "::error title=Release already exists::$expected already targets $existing_target; refusing to overwrite it from $GITHUB_SHA. Bump the application version before publishing."
@@ -80,8 +92,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.7.0
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
       - run: node .github/scripts/verify-runtime-install.mjs
@@ -89,6 +103,7 @@ jobs:
   publish:
     name: Build (${{ matrix.name }})
     needs: [quality, runtime-contract]
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -96,16 +111,14 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
-        with:
-          run_install: false
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.7.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
-          cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -288,9 +301,15 @@ jobs:
             exit 0
           fi
           mkdir -p previous-release
-          gh release download "$previous" --repo "$GITHUB_REPOSITORY" --pattern '*-setup.exe' --dir previous-release
+          if ! gh release download "$previous" --repo "$GITHUB_REPOSITORY" --pattern '*-setup.exe' --dir previous-release; then
+            echo "Previous release $previous has no Windows installer; upgrade smoke is not applicable."
+            exit 0
+          fi
           installer="$(find previous-release -maxdepth 1 -type f -name '*-setup.exe' -print -quit)"
-          test -n "$installer"
+          if [ -z "$installer" ]; then
+            echo "Previous release $previous has no Windows installer; upgrade smoke is not applicable."
+            exit 0
+          fi
           echo "DSH_PREVIOUS_INSTALLER=$PWD/$installer" >> "$GITHUB_ENV"
           echo "Will verify an in-place upgrade from $previous."
 
@@ -407,7 +426,7 @@ jobs:
     needs: publish
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Publish the typed Protocol 3 SDK package
         env:
@@ -455,8 +474,8 @@ jobs:
       contents: write
       actions: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
       - name: Generate the manifest from the completed formal release

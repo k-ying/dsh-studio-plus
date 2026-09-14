@@ -28,6 +28,9 @@ Under 4 MB per installer · [all artifacts and checksums](#install) · [简体�
 > against Studio's install-time patches, and refuses a release whose browser
 > sign-in it cannot adapt to.
 
+For a precise platform and runtime boundary, see the [support matrix](docs/support-matrix.md).
+If startup or plugin installation fails, begin with the [troubleshooting guide](docs/troubleshooting.md).
+
 <br>
 
 <img src="assets/plugin-install.png" width="820" alt="Installing a plugin: the marketplace row, the manifest, the npm output, and the layer written to the harness profile">
@@ -264,8 +267,10 @@ between versions is in the [changelog](CHANGELOG.md).
 
 ## Status
 
-Early. The Windows path is built and verified end to end; the rest is honest
-about being unfinished.
+The v0.9.x line is production-ready for supported desktop workflows. Windows,
+Linux, and macOS artifacts are built and tested in the release matrix; platform
+publisher signing and physical Apple-device acceptance remain separately
+tracked release conditions.
 
 |                                                |                                                                     |
 | ---------------------------------------------- | ------------------------------------------------------------------- |
@@ -280,7 +285,7 @@ about being unfinished.
 | macOS / Linux platform builds                  | ✅ compiled and tested in the platform CI matrix                    |
 | Node runtime fetched and verified on demand    | ✅ no system Node needed                                            |
 | Updater signatures and `SHA256SUMS.txt`        | ✅ mandatory; OS signing is applied when credentials are configured |
-| Download page, five packaging channels         | ✅ Scoop live; four written, not yet submitted                      |
+| Download page, five packaging channels         | ✅ manifests generated and validated in the release pipeline         |
 | Tray icon, close-to-tray while serving         | ✅                                                                  |
 | Native context menus, saved window bounds      | ✅                                                                  |
 | Light and dark, following the system or not    | ✅                                                                  |
@@ -373,7 +378,7 @@ desktop app wrapping a Node service has to answer.
 
 ## FAQ
 
-Detailed guides: [User guide](docs/user-guide.md) · [Troubleshooting](docs/troubleshooting.md) ·
+Documentation hub: [Docs](docs/index.md) · [User guide](docs/user-guide.md) · [Troubleshooting](docs/troubleshooting.md) ·
 [Architecture](docs/architecture.md) · [Plugin and catalog development](docs/plugin-development.md) ·
 [Plugin interoperability contract](docs/plugin-interoperability.md) ·
 [Protocol 3 SDK](sdk/README.md) · [Current roadmap](docs/ROADMAP.md).

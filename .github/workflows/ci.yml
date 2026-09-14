@@ -8,19 +8,24 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   supply-chain:
     name: Supply-chain audit
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with:
-          run_install: false
-      - uses: actions/setup-node@v4
+          version: 11.7.0
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
-          cache: pnpm
+      - name: Initialize pnpm store
+        run: pnpm store path
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@cargo-audit
       - name: Audit production JavaScript dependencies
@@ -37,10 +42,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
+      - name: Initialize pnpm store
+        run: pnpm store path
       - run: node .github/scripts/verify-runtime-install.mjs
 
   test:
@@ -52,16 +62,16 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
-
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with:
-          run_install: false
-
-      - uses: actions/setup-node@v4
+          version: 11.7.0
+      - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
-          cache: pnpm
+
+      - name: Initialize pnpm store
+        run: pnpm store path
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -76,7 +86,12 @@ jobs:
       - run: pnpm lint
       - run: pnpm build
       - run: pnpm test:packaging
+      - name: Verify public contracts
+        run: pnpm verify:contracts
+      - name: Verify accessibility contracts
+        run: pnpm verify:a11y
       - run: pnpm verify:docs
+      - run: node .github/scripts/verify-website-docs.mjs
       - name: Frontend logic coverage (80% minimum)
         run: pnpm test:coverage
       - name: Rust and LAN remote regression
@@ -87,7 +102,7 @@ jobs:
     name: Native safety coverage
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@cargo-llvm-cov
       - name: Install Linux dependencies

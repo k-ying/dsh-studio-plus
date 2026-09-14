@@ -36,12 +36,12 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Assemble the site
         run: |
           mkdir -p site
-          cp website/*.html website/*.css website/*.js site/
+          cp website/*.html website/*.css website/*.js website/*.xml website/*.txt site/
           cp website/latest.json site/
 
           # The brand mark has one source of truth at the repository root, and
@@ -78,6 +78,9 @@ jobs:
               done || status=1
           done
           exit $status
+
+      - name: Verify documentation hub
+        run: node .github/scripts/verify-website-docs.mjs
 
       - uses: actions/configure-pages@v5
         with:

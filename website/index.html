@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="style.css" />
     <link rel="alternate" hreflang="zh-Hans" href="zh.html" />
     <link rel="alternate" hreflang="en" href="index.html" />
+    <link rel="canonical" href="https://moresyl.github.io/dsh-studio/" />
     <meta property="og:title" content="DSH Studio" />
     <meta
       property="og:description"
@@ -33,6 +34,7 @@
           <a href="#ecosystem">Ecosystem</a>
           <a href="#verify">Verify</a>
           <a href="https://github.com/Moresyl/dsh-studio">Source</a>
+          <a href="docs.html">Docs</a>
           <a href="zh.html" lang="zh-Hans">中文</a>
         </nav>
       </header>
@@ -190,8 +192,8 @@
           <div class="section-head">
             <h2>Download</h2>
             <p>
-              Version <strong data-version>latest</strong
-              ><span data-published-wrap hidden>, released <span data-published></span></span>.
+              Version <strong data-version>latest</strong>
+              <span data-published-wrap hidden>, released <span data-published></span></span>.
               Sizes below are read from the release itself.
             </p>
             <p>
@@ -541,9 +543,8 @@ scoop install dsh-studio</pre>
                 covering every file on it, written by the same workflow that built them.
               </p>
               <pre>sha256sum -c SHA256SUMS.txt --ignore-missing</pre>
-              <!-- Wildcarded on the version segment, which the real filenames
-                   carry: DSH.Studio_0.4.0_x64-setup.exe. Get-FileHash globs, so
-                   this is a command that works rather than one that reads well. -->
+              <!-- The version segment is intentionally wildcarded so this remains
+                   valid for every published release. -->
               <pre>Get-FileHash .\DSH.Studio_*_x64-setup.exe</pre>
             </article>
 
@@ -577,7 +578,7 @@ scoop install dsh-studio</pre>
           <a href="https://github.com/Moresyl/dsh-studio">Source</a>
           <a href="https://github.com/Moresyl/dsh-studio/releases">Releases</a>
           <a href="https://github.com/Moresyl/dsh-studio/issues">Report a problem</a>
-          <a href="https://github.com/Moresyl/dsh-studio/blob/main/docs/user-guide.md">Docs</a>
+          <a href="docs.html">Docs</a>
           <a href="https://github.com/Moresyl/dsh-studio/blob/main/CONTRIBUTING.md">Contributing</a>
           <a href="zh.html" lang="zh-Hans">中文</a>
         </div>
