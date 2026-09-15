@@ -21,7 +21,7 @@ test('portable staging copies the only non-empty release executable', async () =
     await writeFile(join(root, 'dsh-studio.exe'), 'portable-app')
     const name = await stagePortable(root, output)
 
-    assert.match(name, /^DSH\.Studio_\d+\.\d+\.\d+_x64-portable\.exe$/)
+    assert.match(name, /^DSH\.Studio_\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?_x64-portable\.exe$/)
     assert.equal(await readFile(join(output, name), 'utf8'), 'portable-app')
   } finally {
     await rm(root, { recursive: true, force: true })

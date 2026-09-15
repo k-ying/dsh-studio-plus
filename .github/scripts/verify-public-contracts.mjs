@@ -39,8 +39,10 @@ export function validateCatalogSchema(schema) {
 /** Keep the application, SDK and Tauri release versions in one release train. */
 export function validateVersions(rootPackage, sdkPackage, tauriConfig) {
   const versions = [rootPackage?.version, sdkPackage?.version, tauriConfig?.version]
-  if (versions.some((version) => !/^\d+\.\d+\.\d+$/.test(version ?? ''))) {
-    throw new Error('application, SDK and Tauri versions must be stable semantic versions')
+  // The fork's release train carries a prerelease-style suffix (0.9.7-plus1) so
+  // every version still names the upstream base it was built from.
+  if (versions.some((version) => !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(version ?? ''))) {
+    throw new Error('application, SDK and Tauri versions must be semantic versions')
   }
   if (new Set(versions).size !== 1) {
     throw new Error(`application, SDK and Tauri versions differ: ${versions.join(', ')}`)
