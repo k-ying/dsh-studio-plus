@@ -6,11 +6,16 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+*'
   workflow_dispatch:
     inputs:
-      linux_only:
-        description: Only rebuild Linux and then refresh release checksums
+      only:
+        description: Build one target instead of the full matrix (a partial rebuild tops up an existing release)
         required: false
-        type: boolean
-        default: false
+        type: choice
+        options:
+          - all
+          - linux
+          - windows
+          - macos
+        default: all
 
 permissions:
   contents: write
@@ -115,7 +120,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(github.event.inputs.linux_only == 'true' && '[{"name":"Linux x64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","rustTargets":"x86_64-unknown-linux-gnu","args":"--target x86_64-unknown-linux-gnu"}]' || '[{"name":"Linux x64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","rustTargets":"x86_64-unknown-linux-gnu","args":"--target x86_64-unknown-linux-gnu"},{"name":"Windows x64","os":"windows-2025","target":"x86_64-pc-windows-msvc","rustTargets":"x86_64-pc-windows-msvc","args":"--target x86_64-pc-windows-msvc"},{"name":"macOS Universal","os":"macos-15","target":"universal-apple-darwin","rustTargets":"aarch64-apple-darwin,x86_64-apple-darwin","args":"--target universal-apple-darwin"}]') }}
+        include: ${{ fromJSON(github.event.inputs.only == 'linux' && '[{"name":"Linux x64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","rustTargets":"x86_64-unknown-linux-gnu","args":"--target x86_64-unknown-linux-gnu"}]' || github.event.inputs.only == 'windows' && '[{"name":"Windows x64","os":"windows-2025","target":"x86_64-pc-windows-msvc","rustTargets":"x86_64-pc-windows-msvc","args":"--target x86_64-pc-windows-msvc --bundles nsis"}]' || github.event.inputs.only == 'macos' && '[{"name":"macOS Universal","os":"macos-15","target":"universal-apple-darwin","rustTargets":"aarch64-apple-darwin,x86_64-apple-darwin","args":"--target universal-apple-darwin"}]' || '[{"name":"Linux x64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","rustTargets":"x86_64-unknown-linux-gnu","args":"--target x86_64-unknown-linux-gnu"},{"name":"Windows x64","os":"windows-2025","target":"x86_64-pc-windows-msvc","rustTargets":"x86_64-pc-windows-msvc","args":"--target x86_64-pc-windows-msvc --bundles nsis"},{"name":"macOS Universal","os":"macos-15","target":"universal-apple-darwin","rustTargets":"aarch64-apple-darwin,x86_64-apple-darwin","args":"--target universal-apple-darwin"}]') }}
     runs-on: ${{ matrix.os }}
 
     steps:
