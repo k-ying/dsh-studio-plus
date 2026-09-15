@@ -21,6 +21,10 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 11.7.0
+          # setup-node owns the store cache in jobs that install; without an
+          # install there is no store to save, and this action's default
+          # package-manager cache would fail the job in its post step.
+          package-manager-cache: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
@@ -46,6 +50,10 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 11.7.0
+          # setup-node owns the store cache in jobs that install; without an
+          # install there is no store to save, and this action's default
+          # package-manager cache would fail the job in its post step.
+          package-manager-cache: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
@@ -66,6 +74,10 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 11.7.0
+          # setup-node owns the store cache in jobs that install; without an
+          # install there is no store to save, and this action's default
+          # package-manager cache would fail the job in its post step.
+          package-manager-cache: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
