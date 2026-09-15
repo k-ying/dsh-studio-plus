@@ -21,7 +21,7 @@ pub fn app_data_dir() -> PathBuf {
     #[cfg(test)]
     {
         static TEST_ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-        return TEST_ROOT
+        TEST_ROOT
             .get_or_init(|| {
                 std::env::temp_dir().join(format!(
                     "dsh-studio-test-{}-{}",
@@ -32,7 +32,7 @@ pub fn app_data_dir() -> PathBuf {
                         .unwrap_or_default()
                 ))
             })
-            .clone();
+            .clone()
     }
     #[cfg(not(test))]
     dirs::data_local_dir()

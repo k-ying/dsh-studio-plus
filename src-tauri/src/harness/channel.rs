@@ -125,7 +125,7 @@ mod tests {
             Some("0.1.5-rc.1".to_string())
         );
         assert_eq!(update_available(&channel, Some("0.1.5-rc.1")), None);
-        assert_eq!(update_available(&channel, None).is_some(), true);
+        assert!(update_available(&channel, None).is_some());
     }
 
     #[test]

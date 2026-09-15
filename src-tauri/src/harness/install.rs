@@ -31,7 +31,6 @@ pub const PACKAGE: &str = "@deepseek-ai/dsh";
 /// root keeps a newly installed machine from silently selecting an unrelated
 /// release graph.
 pub const VERSION: &str = "0.1.2-rc.1";
-pub const SPEC: &str = "@deepseek-ai/dsh@0.1.2-rc.1";
 pub const PNPM_VERSION: &str = "11.7.0";
 pub const PNPM_SPEC: &str = "pnpm@11.7.0";
 
@@ -959,7 +958,7 @@ pub fn runtime_version(target: &Path) -> Option<String> {
 /// channel would install. Plugin compatibility answers about what runs, not
 /// about what the build pinned.
 pub fn current_version() -> String {
-    runtime_version(&crate::paths::harness_dir()).unwrap_or_else(|| super::channel::selected())
+    runtime_version(&crate::paths::harness_dir()).unwrap_or_else(super::channel::selected)
 }
 
 /// Whether the installed runtime is exactly the family this application tested.
@@ -994,10 +993,6 @@ fn pnpm_entry(target: &Path) -> PathBuf {
 
 fn integration_entry(target: &Path) -> PathBuf {
     target.join("node_modules/@moresyl/dsh-studio-integration/lib/client.js")
-}
-
-fn runtime_schema(target: &Path) -> Option<u8> {
-    runtime_marker(target).map(|(schema, _)| schema)
 }
 
 /// The contract marker left by qualification: its schema and the optional
@@ -1262,7 +1257,7 @@ mod tests {
         run_command_with_limits, runtime_compatible, runtime_manifest_for, runtime_version,
         InstallPlan, CONNECTION_PATCHES, INTEGRATION_PACKAGE, INTEGRATION_RESOLVER,
         OFFICIAL_REGISTRY, PACKAGE, PNPM_SPEC, PNPM_VERSION, RUNTIME_LOCK, RUNTIME_PACKAGE,
-        RUNTIME_SCHEMA, SPEC, VERSION,
+        RUNTIME_SCHEMA, VERSION, spec_for,
     };
 
     fn write_runtime(root: &Path, version: &str, entry: bool) {
@@ -1310,8 +1305,8 @@ mod tests {
 
     #[test]
     fn runtime_contract_is_an_exact_package_spec() {
-        assert_eq!(SPEC, format!("{PACKAGE}@{VERSION}"));
-        assert!(!SPEC.ends_with("@latest"));
+        assert_eq!(spec_for(VERSION), format!("{PACKAGE}@{VERSION}"));
+        assert!(!spec_for(VERSION).ends_with("@latest"));
         assert!(!VERSION.starts_with(['^', '~']));
         assert_eq!(PNPM_SPEC, format!("pnpm@{PNPM_VERSION}"));
     }
@@ -1390,7 +1385,7 @@ mod tests {
             node: Path::new("node").to_path_buf(),
             npm_cli: Path::new("npm-cli.js").to_path_buf(),
             target: Path::new("runtime").to_path_buf(),
-            spec: SPEC.to_string(),
+            spec: spec_for(VERSION),
             version: VERSION.to_string(),
         };
         let locked = plan.to_locked_command();
