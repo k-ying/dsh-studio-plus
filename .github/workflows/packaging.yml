@@ -25,6 +25,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
+          # No pnpm is installed in this job, and setup-node v5's default
+          # package-manager cache would look for one in its post step.
+          package-manager-cache: false
       - name: Resolve published release tag
         id: release
         shell: bash
