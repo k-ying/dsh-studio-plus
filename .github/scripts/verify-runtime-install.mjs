@@ -10,8 +10,9 @@ const directory = await mkdtemp(join(tmpdir(), 'dsh-runtime-contract-'))
 
 try {
   const studioVersion = JSON.parse(await readFile('package.json', 'utf8')).version
-  if (!/^\d+\.\d+\.\d+$/.test(studioVersion ?? '')) {
-    throw new Error('Studio package.json has no stable semantic version')
+  // Fork releases carry a -plusN suffix on the upstream base version.
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(studioVersion ?? '')) {
+    throw new Error('Studio package.json has no semantic version')
   }
   const npm =
     process.platform === 'win32'
