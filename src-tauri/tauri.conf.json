@@ -49,10 +49,9 @@
       }
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVCRDlBREQ4RTA3QTY4N0EKUldSNmFIcmcySzNaNnhad3M2bnBqWFVVYjNMZThvTUdhQU1Odnl0dTdNNFNobWs2NXNMdnViZ3oK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdGMzQ4RTJGNzE1Mzg0NDkKUldSSmhGTnhMNDQwZi9uT1I0MVhuOGtXMm9vWFFleUpZUWJRWWVoeHRrYkx0WS96MzZPaW5XVGMK",
       "endpoints": [
-        "https://github.com/Moresyl/dsh-studio/releases/latest/download/latest.json",
-        "https://moresyl.github.io/dsh-studio/latest.json"
+        "https://github.com/k-ying/dsh-studio-plus/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"

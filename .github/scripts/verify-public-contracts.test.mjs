@@ -76,6 +76,6 @@ test('repository public contracts agree end to end', async () => {
     protocol: 3,
     hostProtocol: 1,
     schema: '1.0.0',
-    version: '0.9.7-plus1',
+    version: '0.9.8-plus1',
   })
 })
