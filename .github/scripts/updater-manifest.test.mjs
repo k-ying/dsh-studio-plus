@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import semver from 'semver'
 
 import { normalizeUpdaterManifest } from '../../packaging/updater-manifest.mjs'
 
@@ -42,33 +41,22 @@ test('website fallback rejects unsigned or insecure updater artifacts', () => {
   )
 })
 
-test('desktop and publishing workflows agree on the website fallback', async () => {
-  const [configText, packageText, fallbackText, packageWorkflow, websiteWorkflow, releaseWorkflow] =
-    await Promise.all([
-      readFile('src-tauri/tauri.conf.json', 'utf8'),
-      readFile('package.json', 'utf8'),
-      readFile('website/latest.json', 'utf8'),
-      readFile('.github/workflows/packaging.yml', 'utf8'),
-      readFile('.github/workflows/website.yml', 'utf8'),
-      readFile('.github/workflows/release.yml', 'utf8'),
-    ])
-  const config = JSON.parse(configText)
-  const packageVersion = JSON.parse(packageText).version
-  // A release candidate must keep the previous signed, published manifest
-  // until artifacts exist. Never rewrite old signatures to the new version.
-  const fallback = JSON.parse(fallbackText)
-  assert.ok(semver.valid(fallback.version))
-  assert.ok(semver.lte(fallback.version, packageVersion))
-  normalizeUpdaterManifest(fallbackText, fallback.version)
-
-  assert.deepEqual(config.plugins.updater.endpoints, [
-    'https://github.com/Moresyl/dsh-studio/releases/latest/download/latest.json',
-    'https://moresyl.github.io/dsh-studio/latest.json',
+test('desktop and publishing workflows agree on the updater feed', async () => {
+  const [configText, packageText, packageWorkflow, releaseWorkflow] = await Promise.all([
+    readFile('src-tauri/tauri.conf.json', 'utf8'),
+    readFile('package.json', 'utf8'),
+    readFile('.github/workflows/packaging.yml', 'utf8'),
+    readFile('.github/workflows/release.yml', 'utf8'),
   ])
+  const config = JSON.parse(configText)
+  JSON.parse(packageText)
+
+  // The fork serves updates from its own Releases feed only: no Pages mirror,
+  // and never the upstream repository — an upstream feed would replace a fork
+  // install with an upstream build on the next update check.
+  assert.deepEqual(config.plugins.updater.endpoints, [
+    'https://github.com/k-ying/dsh-studio-plus/releases/latest/download/latest.json',
+  ])
+  assert.match(releaseWorkflow, /uploadUpdaterJson: true/)
   assert.match(packageWorkflow, /website\/latest\.json/)
-  assert.match(websiteWorkflow, /cp website\/latest\.json site\//)
-  assert.match(releaseWorkflow, /node packaging\/generate\.mjs "\$tag"/)
-  assert.match(releaseWorkflow, /git add -- website\/latest\.json/)
-  assert.match(releaseWorkflow, /gh workflow run website\.yml/)
-  assert.match(releaseWorkflow, /gh run watch "\$run_id"/)
 })

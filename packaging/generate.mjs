@@ -25,8 +25,8 @@ import { fileURLToPath } from 'node:url'
 
 import { normalizeUpdaterManifest } from './updater-manifest.mjs'
 
-const OWNER = 'Moresyl'
-const REPO = 'dsh-studio'
+const OWNER = 'k-ying'
+const REPO = 'dsh-studio-plus'
 const IDENTIFIER = 'io.github.moresyl.dshstudio'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -38,8 +38,7 @@ const DESCRIPTION =
    the bundler decides, as opposed to the version in the middle of it. */
 const WANTED = {
   windowsSetup: '_x64-setup.exe',
-  macArm: '_aarch64.dmg',
-  macIntel: '_x64.dmg',
+  macUniversal: '_universal.dmg',
   linuxDeb: '_amd64.deb',
 }
 
@@ -338,13 +337,10 @@ function homebrew({ version, files }) {
 
 # ${GENERATED}
 cask "dsh-studio" do
-  arch arm: "aarch64", intel: "x64"
-
   version "${version}"
-  sha256 arm:   "${files.macArm.sha256}",
-         intel: "${files.macIntel.sha256}"
+  sha256 "${files.macUniversal.sha256}"
 
-  url "https://github.com/${OWNER}/${REPO}/releases/download/v#{version}/DSH.Studio_#{version}_#{arch}.dmg"
+  url "https://github.com/${OWNER}/${REPO}/releases/download/v#{version}/DSH.Studio_#{version}_universal.dmg"
   name "DSH Studio"
   desc "${SHORT_DESCRIPTION.replace(/\.$/, '')}"
   homepage "https://github.com/${OWNER}/${REPO}"

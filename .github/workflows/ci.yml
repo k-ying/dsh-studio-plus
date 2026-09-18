@@ -24,8 +24,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          # This job never runs pnpm install, so there is no store for
+          # setup-node v5's default package-manager cache to save; its post
+          # step would fail the job over the missing directory.
+          package-manager-cache: false
       - name: Initialize pnpm store
         run: pnpm store path
       - uses: dtolnay/rust-toolchain@stable
@@ -51,8 +53,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          # This job never runs pnpm install, so there is no store for
+          # setup-node v5's default package-manager cache to save; its post
+          # step would fail the job over the missing directory.
+          package-manager-cache: false
       - name: Initialize pnpm store
         run: pnpm store path
       - run: node .github/scripts/verify-runtime-install.mjs
@@ -102,15 +106,6 @@ jobs:
         run: pnpm test:coverage
       - name: Rust and LAN remote regression
         run: cargo test --manifest-path src-tauri/Cargo.toml --workspace
-      - name: Selected Harness downgrade and real profile boot
-        env:
-          DSH_TEST_VERSION: 0.1.1-rc.1
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib selected_runtime_cold_install_and_boot -- --ignored --nocapture
-      - name: Reject incompatible embedded authentication before activation
-        env:
-          DSH_TEST_VERSION: 0.1.5-rc.2
-          DSH_TEST_EXPECT_ERROR: incompatible with the embedded Studio window
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib selected_runtime_cold_install_and_boot -- --ignored --nocapture
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets -- -D warnings
 
   rust-coverage:

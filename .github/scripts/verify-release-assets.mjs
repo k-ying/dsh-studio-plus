@@ -14,23 +14,13 @@ for (const file of files) {
 
 const required = [
   ['Windows NSIS installer', (name) => lite(name) && name.endsWith('-setup.exe')],
-  ['Windows MSI installer', (name) => lite(name) && name.endsWith('.msi')],
   ['Windows portable executable', (name) => lite(name) && name.endsWith('_x64-portable.exe')],
   ['Linux AppImage', (name) => lite(name) && name.endsWith('.AppImage')],
   ['Linux Debian package', (name) => lite(name) && name.endsWith('.deb')],
   ['Linux RPM package', (name) => lite(name) && name.endsWith('.rpm')],
-  ['macOS Apple Silicon image', (name) => lite(name) && /aarch64.*\.dmg$/i.test(name)],
-  ['macOS Intel image', (name) => lite(name) && /(x64|x86_64).*\.dmg$/i.test(name)],
   ['macOS Universal image', (name) => lite(name) && /universal.*\.dmg$/i.test(name)],
   ['Tauri updater manifest', (name) => name === 'latest.json'],
-  ['Windows Full NSIS installer', (name) => /full-x86_64-pc-windows-msvc\.exe$/i.test(name)],
-  ['Windows Full MSI installer', (name) => /full-x86_64-pc-windows-msvc\.msi$/i.test(name)],
-  ['Linux Full AppImage', (name) => /full-x86_64-unknown-linux-gnu\.AppImage$/i.test(name)],
-  ['Linux Full Debian package', (name) => /full-x86_64-unknown-linux-gnu\.deb$/i.test(name)],
-  ['Linux Full RPM package', (name) => /full-x86_64-unknown-linux-gnu\.rpm$/i.test(name)],
-  ['macOS Full Apple Silicon image', (name) => /full-aarch64-apple-darwin\.dmg$/i.test(name)],
-  ['macOS Full Intel image', (name) => /full-x86_64-apple-darwin\.dmg$/i.test(name)],
-  ['Protocol 3 SDK package', (name) => /^moresyl-dsh-studio-sdk-\d+\.\d+\.\d+\.tgz$/i.test(name)],
+  ['Protocol 3 SDK package', (name) => /^moresyl-dsh-studio-sdk-\d+\.\d+\.\d+.*\.tgz$/i.test(name)],
 ]
 for (const [label, matches] of required) {
   if (!names.some(matches)) throw new Error(`release is missing ${label}`)

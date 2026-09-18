@@ -35,24 +35,30 @@ export function shouldExerciseWindowsInstaller(environment = process.env) {
 }
 
 async function verifyWindows(files) {
-  const msi = requireOne(files, (file) => file.toLowerCase().endsWith('.msi'), 'MSI')
+  // The fork ships NSIS only: WiX refuses prerelease-style versions such as
+  // 0.9.7-plus1 (the MSI product version must be numeric), and the NSIS
+  // installer is the artifact users actually download. Smoke an MSI only when
+  // a build happens to produce one.
+  const msi = files.find((file) => file.toLowerCase().endsWith('.msi'))
   const nsis = requireOne(
     files,
     (file) => file.toLowerCase().endsWith('.exe') && !file.toLowerCase().endsWith('.sig'),
     'NSIS installer',
   )
 
-  const msiRoot = join(scratch, 'msi')
-  await run('msiexec.exe', ['/a', msi, '/qn', `TARGETDIR=${msiRoot}`])
-  await verifyOffline(msiRoot)
-  await smoke(await installedExecutable(msiRoot))
+  if (msi) {
+    const msiRoot = join(scratch, 'msi')
+    await run('msiexec.exe', ['/a', msi, '/qn', `TARGETDIR=${msiRoot}`])
+    await verifyOffline(msiRoot)
+    await smoke(await installedExecutable(msiRoot))
+  }
 
   // NSIS writes per-user installation and uninstall registration even when /D
   // points at a temporary directory. That is acceptable on an ephemeral CI
   // runner, but a local release rehearsal must never take over the developer's
   // real updater registration or leave a temp build as the primary app.
   if (!shouldExerciseWindowsInstaller()) {
-    console.log('verified MSI extraction and packaged binary; skipped stateful NSIS install outside GitHub Actions')
+    console.log('verified packaged binary; skipped stateful NSIS install outside GitHub Actions')
     return
   }
 

@@ -30,8 +30,8 @@ pub const PACKAGE: &str = "@deepseek-ai/dsh";
 /// including the public `dsh-code-runtime-worker-thread` package. Pinning the
 /// root keeps a newly installed machine from silently selecting an unrelated
 /// release graph.
-pub const VERSION: &str = "0.1.1-rc.2";
-pub const SPEC: &str = "@deepseek-ai/dsh@0.1.1-rc.2";
+pub const VERSION: &str = "0.1.2-rc.1";
+pub const SPEC: &str = "@deepseek-ai/dsh@0.1.2-rc.1";
 
 /// Accept immutable npm versions only; tags, ranges and paths are never commands.
 pub fn validate_version(version: &str) -> Result<()> {
@@ -783,6 +783,33 @@ fn qualify_runtime(target: &Path) -> Result<()> {
             "the qualified directory picker could not be written: {cause}"
         ))
     })?;
+
+    // The 0.1.2 browser-session fence rejects the managed iframe (a webview
+    // frame cannot hold the bootstrap cookie). Exempt Studio-launched
+    // harnesses, which carry DSH_DESKTOP=1; terminal launches keep the fence.
+    // Tolerated as optional: harnesses without the fence (0.1.1) qualify as-is.
+    let connection = target
+        .join("node_modules/@deepseek-ai/dsh-client-connection/lib/index.js");
+    if let Ok(body) =
+        crate::bounded_file::read_string(&connection, crate::bounded_file::CONTROL_BYTES)
+    {
+        const FENCE: &str = "\tisAuthenticated(request) {\n\t\tconst authority = requestAuthority(request.headers);";
+        if body.contains(FENCE)
+            && !body.contains("process.env.DSH_DESKTOP !== void 0")
+        {
+            let exempted = body.replacen(
+                FENCE,
+                "\tisAuthenticated(request) {\n\t\tif (process.env.DSH_DESKTOP !== void 0) return true;\n\t\tconst authority = requestAuthority(request.headers);",
+                1,
+            );
+            std::fs::write(&connection, exempted).map_err(|cause| {
+                Error::Install(format!(
+                    "the desktop connection exemption could not be written: {cause}"
+                ))
+            })?;
+        }
+    }
+
     std::fs::write(
         target.join("dsh-studio-runtime.json"),
         format!("{{\"schema\":{RUNTIME_SCHEMA}}}\n"),

@@ -6,11 +6,16 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+*'
   workflow_dispatch:
     inputs:
-      linux_only:
-        description: Only rebuild Linux and then refresh release checksums
+      only:
+        description: Build one target instead of the full matrix (a partial rebuild tops up an existing release)
         required: false
-        type: boolean
-        default: false
+        type: choice
+        options:
+          - all
+          - linux
+          - windows
+          - macos
+        default: all
 
 permissions:
   contents: write
@@ -102,8 +107,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          # This job never runs pnpm install, so there is no store for
+          # setup-node v5's default package-manager cache to save; its post
+          # step would fail the job over the missing directory.
+          package-manager-cache: false
       - run: node .github/scripts/verify-runtime-install.mjs
 
   publish:
@@ -113,7 +120,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(github.event.inputs.linux_only == 'true' && '[{"name":"Linux x64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","rustTargets":"x86_64-unknown-linux-gnu","args":"--target x86_64-unknown-linux-gnu"}]' || '[{"name":"Linux x64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","rustTargets":"x86_64-unknown-linux-gnu","args":"--target x86_64-unknown-linux-gnu"},{"name":"Windows x64","os":"windows-2025","target":"x86_64-pc-windows-msvc","rustTargets":"x86_64-pc-windows-msvc","args":"--target x86_64-pc-windows-msvc"},{"name":"macOS Apple Silicon","os":"macos-15","target":"aarch64-apple-darwin","rustTargets":"aarch64-apple-darwin","args":"--target aarch64-apple-darwin"},{"name":"macOS Intel","os":"macos-15-intel","target":"x86_64-apple-darwin","rustTargets":"x86_64-apple-darwin","args":"--target x86_64-apple-darwin"},{"name":"macOS Universal","os":"macos-15","target":"universal-apple-darwin","rustTargets":"aarch64-apple-darwin,x86_64-apple-darwin","args":"--target universal-apple-darwin"}]') }}
+        include: ${{ fromJSON(github.event.inputs.only == 'linux' && '[{"name":"Linux x64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","rustTargets":"x86_64-unknown-linux-gnu","args":"--target x86_64-unknown-linux-gnu"}]' || github.event.inputs.only == 'windows' && '[{"name":"Windows x64","os":"windows-2025","target":"x86_64-pc-windows-msvc","rustTargets":"x86_64-pc-windows-msvc","args":"--target x86_64-pc-windows-msvc --bundles nsis"}]' || github.event.inputs.only == 'macos' && '[{"name":"macOS Universal","os":"macos-15","target":"universal-apple-darwin","rustTargets":"aarch64-apple-darwin,x86_64-apple-darwin","args":"--target universal-apple-darwin"}]' || '[{"name":"Linux x64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu","rustTargets":"x86_64-unknown-linux-gnu","args":"--target x86_64-unknown-linux-gnu"},{"name":"Windows x64","os":"windows-2025","target":"x86_64-pc-windows-msvc","rustTargets":"x86_64-pc-windows-msvc","args":"--target x86_64-pc-windows-msvc --bundles nsis"},{"name":"macOS Universal","os":"macos-15","target":"universal-apple-darwin","rustTargets":"aarch64-apple-darwin,x86_64-apple-darwin","args":"--target universal-apple-darwin"}]') }}
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -358,48 +365,11 @@ jobs:
           "$portable" --smoke-test
           gh release upload "$tag" "$portable" --repo "$GITHUB_REPOSITORY" --clobber
 
-      - name: Prepare verified Full / Offline runtime
-        if: matrix.target != 'universal-apple-darwin'
-        shell: bash
-        run: node .github/scripts/prepare-offline-runtime.mjs "${{ matrix.target }}" src-tauri/runtime-cache/offline
-
-      - name: Build Full / Offline packages
-        if: matrix.target != 'universal-apple-darwin'
-        shell: bash
-        env:
-          DSH_STUDIO_EDITION: full
-          CARGO_TARGET_DIR: ${{ github.workspace }}/src-tauri/target-full
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
-        run: pnpm tauri build --target "${{ matrix.target }}" --config src-tauri/tauri.full.conf.json
-
-      - name: Verify Full / Offline packaged application and payload
-        if: matrix.target != 'universal-apple-darwin'
-        shell: bash
-        env:
-          DSH_EXPECT_OFFLINE: '1'
-        run: node .github/scripts/verify-packaged-app.mjs "src-tauri/target-full/${{ matrix.target }}/release/bundle"
-
-      - name: Upload Full / Offline packages
-        if: matrix.target != 'universal-apple-darwin'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            tag="$GITHUB_REF_NAME"
-          else
-            tag="v$(node -p 'require("./src-tauri/tauri.conf.json").version')"
-          fi
-          rm -rf full-assets
-          node .github/scripts/stage-full-assets.mjs "src-tauri/target-full/${{ matrix.target }}/release/bundle" "${{ matrix.target }}" full-assets
-          gh release upload "$tag" full-assets/* --repo "$GITHUB_REPOSITORY" --clobber
-
       - name: Verify Windows Authenticode signatures
         if: runner.os == 'Windows' && env.WINDOWS_SIGNING_ENABLED == 'true'
         shell: pwsh
         run: |
-          $files = Get-ChildItem -Path src-tauri/target,src-tauri/target-full,portable-assets -Recurse -File | Where-Object { ($_.FullName -match '\\bundle\\' -or $_.FullName -match '\\portable-assets\\') -and $_.Extension -in '.exe', '.msi' }
+          $files = Get-ChildItem -Path src-tauri/target,portable-assets -Recurse -File | Where-Object { ($_.FullName -match '\\bundle\\' -or $_.FullName -match '\\portable-assets\\') -and $_.Extension -in '.exe', '.msi' }
           if (-not $files) { throw 'No Windows installer was produced.' }
           foreach ($file in $files) {
             $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
@@ -416,14 +386,12 @@ jobs:
             codesign --verify --deep --strict --verbose=2 "$app"
             spctl --assess --type execute --verbose=2 "$app"
             apps=$((apps + 1))
-          done < <(find src-tauri/target src-tauri/target-full -path '*/release/bundle/macos/*.app' -print0)
+          done < <(find src-tauri/target -path '*/release/bundle/macos/*.app' -print0)
           while IFS= read -r -d '' dmg; do
             xcrun stapler validate "$dmg"
             images=$((images + 1))
-          done < <(find src-tauri/target src-tauri/target-full -path '*/release/bundle/dmg/*.dmg' -print0)
-          expected=2
-          if [ "${{ matrix.target }}" = "universal-apple-darwin" ]; then expected=1; fi
-          test "$apps" -eq "$expected" && test "$images" -eq "$expected"
+          done < <(find src-tauri/target -path '*/release/bundle/dmg/*.dmg' -print0)
+          test "$apps" -eq 1 && test "$images" -eq 1
 
   # Signatures say who built an installer; these say the bytes are the ones that
   # were built. Worth having for the mirrors this project will be downloaded
@@ -473,66 +441,3 @@ jobs:
 
           gh release upload "$tag" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
 
-  updater-fallback:
-    name: Publish signed updater fallback
-    needs: checksums
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-      actions: write
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.7.0
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22.19.0
-      - name: Generate the manifest from the completed formal release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "$GITHUB_REF_TYPE" = tag ]; then
-            tag="$GITHUB_REF_NAME"
-          else
-            tag="v$(node -p 'require("./src-tauri/tauri.conf.json").version')"
-          fi
-          node packaging/generate.mjs "$tag"
-      - name: Persist the fallback on main
-        run: |
-          manifest="$(mktemp)"
-          cp website/latest.json "$manifest"
-          git fetch origin main
-          git checkout --force -B publish-updater-manifest origin/main
-          cp "$manifest" website/latest.json
-          git add -- website/latest.json
-          if git diff --cached --quiet; then
-            echo "The fallback manifest on main already matches this release."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: publish updater fallback for v$(node -p 'require(\"./src-tauri/tauri.conf.json\").version')"
-          git push origin HEAD:main
-      - name: Dispatch the protected-branch Website deployment
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          previous_run="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow website.yml --event workflow_dispatch --branch main --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
-          gh workflow run website.yml --repo "$GITHUB_REPOSITORY" --ref main
-
-          run_id=""
-          for attempt in $(seq 1 30); do
-            candidate="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow website.yml --event workflow_dispatch --branch main --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
-            if [ -n "$candidate" ] && [ "$candidate" != "$previous_run" ]; then
-              run_id="$candidate"
-              break
-            fi
-            sleep 2
-          done
-
-          if [ -z "$run_id" ]; then
-            echo "::error::The protected-branch Website deployment did not start."
-            exit 1
-          fi
-          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status

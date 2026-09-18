@@ -9,17 +9,22 @@
 Rust + Tauri 2 编写。它托管本地 `dsh` 服务、回收服务派生出的每一个进程，
 并且做到这些不需要 fork 上游项目。
 
-[![Release](https://img.shields.io/github/v/release/Moresyl/dsh-studio?style=flat-square&color=3560e8&label=release)](https://github.com/Moresyl/dsh-studio/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/Moresyl/dsh-studio/total?style=flat-square&color=3560e8&label=downloads)](https://github.com/Moresyl/dsh-studio/releases)
-[![CI](https://img.shields.io/github/actions/workflow/status/Moresyl/dsh-studio/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/Moresyl/dsh-studio/actions/workflows/ci.yml)
-[![Stars](https://img.shields.io/github/stars/Moresyl/dsh-studio?style=flat-square&color=3560e8)](https://github.com/Moresyl/dsh-studio/stargazers)
+[![Release](https://img.shields.io/github/v/release/k-ying/dsh-studio-plus?style=flat-square&color=3560e8&label=release)](https://github.com/k-ying/dsh-studio-plus/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/k-ying/dsh-studio-plus/total?style=flat-square&color=3560e8&label=downloads)](https://github.com/k-ying/dsh-studio-plus/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/k-ying/dsh-studio-plus/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/k-ying/dsh-studio-plus/actions/workflows/ci.yml)
+[![Stars](https://img.shields.io/github/stars/k-ying/dsh-studio-plus?style=flat-square&color=3560e8)](https://github.com/k-ying/dsh-studio-plus/stargazers)
 [![License](https://img.shields.io/badge/license-MIT-3560e8?style=flat-square)](LICENSE)
 
-[![Windows 下载](https://img.shields.io/badge/Windows-.exe%20%C2%B7%20.msi-3560e8?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Moresyl/dsh-studio/releases/latest)
-[![macOS 下载](https://img.shields.io/badge/macOS-.dmg-1c1c1e?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Moresyl/dsh-studio/releases/latest)
-[![Linux 下载](https://img.shields.io/badge/Linux-.AppImage%20%C2%B7%20.deb%20%C2%B7%20.rpm-0e9e74?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/Moresyl/dsh-studio/releases/latest)
+[![Windows 下载](https://img.shields.io/badge/Windows-.exe%20%C2%B7%20.msi-3560e8?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/k-ying/dsh-studio-plus/releases/latest)
+[![macOS 下载](https://img.shields.io/badge/macOS-.dmg-1c1c1e?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/k-ying/dsh-studio-plus/releases/latest)
+[![Linux 下载](https://img.shields.io/badge/Linux-.AppImage%20%C2%B7%20.deb%20%C2%B7%20.rpm-0e9e74?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/k-ying/dsh-studio-plus/releases/latest)
 
 每个安装包不到 4 MB · [全部产物与校验和](#安装) · [English](README.md)
+
+> **dsh-studio-plus** 是 [Moresyl/dsh-studio](https://github.com/Moresyl/dsh-studio)
+> 的分支，跟踪上游 Harness 的新版本。原版把 `dsh` 钉死在发布时验证过的那一个版本上；
+> 本分支支持 0.1.2，并允许你自己选择版本——设置 → dsh 运行时列出所有已发布版本，
+> 切换前会对 Studio 的安装期补丁做预检，无法适配鉴权改动的版本会被明确拒绝。
 
 平台与运行时边界请参阅[支持矩阵](docs/support-matrix.zh-CN.md)；启动或插件安装失败时，请先查看[故障排除指南](docs/troubleshooting.zh-CN.md)。
 
@@ -38,6 +43,20 @@ Rust + Tauri 2 编写。它托管本地 `dsh` 服务、回收服务派生出的�
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **⟳ 是托管，不只是启动**<br>退出后按退避策略重启，并且每 10 秒发一次真正的 HTTP 探测，专门抓那种「活着但卡死」的 harness。重启会落到新端口上，窗口自动跟过去。   | **⛨ 没有东西能活过这个窗口**<br>每个子进程都被并入 Windows job object 或 POSIX 进程组，由内核回收整棵树——包括普通 kill 会漏掉的孙子进程，哪怕外壳自己是被强杀的。             |
 | **⬗ 窗口里自带插件市场**<br>搜索 npm registry，在决定装之前先看清这个包声明了什么，然后走 harness 自己的命令装进它托管的 profile。装好的插件可以只停用、不卸载。 | **▣ 够得着你的手机，但不把 agent 放到网络上**<br>`dsh` 始终绑在回环上，而且这一点不可配置。打开的是另一扇门：一个只绑定单个局域网地址的网关，靠二维码配对，一台设备、两分钟。 |
+
+## 本分支新增
+
+**支持 Harness 0.1.2 及以上，且不替别人关掉鉴权。**
+0.1.2 的 Web 界面要求先用每次启动的临时令牌换一个 SameSite Cookie——这套流程
+外壳里的跨站 iframe 永远完不成。安装器改为在安装期改造连接包：由 Studio 启动的
+harness 视本机回环调用为已认证（与 0.1.1 的暴露面一致），而从终端启动的 `dsh`
+完整保留上游的令牌门禁。
+
+**用版本通道替代钉死的版本号。** 设置 → dsh 运行时列出所有已发布的 dsh 版本，
+并在有更新时提示。切换前会先从 registry 拉取两个被打补丁的包做缝合点预检：
+鉴权机制已变化的版本会被拒绝；只是无法用原生目录选择器的版本则降级安装。
+依赖清单是模板——跟随 dsh 锁步的 `@deepseek-ai/*` 包随所选版本改写，
+非内置版本则现场解析依赖图，不再使用内嵌的 lock 文件。
 
 ## 为什么做这个
 
@@ -193,7 +212,7 @@ macOS 通用版为轻量版。完整离线版内含原生 Node runtime，因此�
 并且是从一个真实 release 生成的——里面的版本号和 SHA-256 从来不是手打的：
 
 ```powershell
-scoop bucket add dsh https://github.com/Moresyl/dsh-studio
+scoop bucket add dsh https://github.com/k-ying/dsh-studio-plus
 scoop install dsh-studio
 ```
 
@@ -212,7 +231,7 @@ registry——[`packaging/README.md`](packaging/README.md) 里逐条写明了每
 机器上没有 Node.js 也没关系——应用会替你装一个。
 每个版本改了什么，见[更新日志](CHANGELOG.zh-CN.md)。
 
-[Releases]: https://github.com/Moresyl/dsh-studio/releases
+[Releases]: https://github.com/k-ying/dsh-studio-plus/releases
 
 ## 当前状态
 
@@ -382,9 +401,9 @@ supervisor 再从服务自己打印的就绪行里把真实端口读回来。
 
 | 去哪儿                                                                                      | 做什么                                                                      |
 | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| [报一个 bug](https://github.com/Moresyl/dsh-studio/issues/new?template=bug_report.yml)      | 表单一上来就问平台、Node 版本和日志——定位问题最需要的就是这三样。           |
-| [提一个需求](https://github.com/Moresyl/dsh-studio/issues/new?template=feature_request.yml) | 包括「这件事 harness 在终端里能做，窗口里做不了」。                         |
-| [私下报告问题](https://github.com/Moresyl/dsh-studio/security/advisories/new)               | 关于网关、配对密钥或 supervisor 的任何事。另见 [SECURITY.md](SECURITY.md)。 |
+| [报一个 bug](https://github.com/k-ying/dsh-studio-plus/issues/new?template=bug_report.yml)      | 表单一上来就问平台、Node 版本和日志——定位问题最需要的就是这三样。           |
+| [提一个需求](https://github.com/k-ying/dsh-studio-plus/issues/new?template=feature_request.yml) | 包括「这件事 harness 在终端里能做，窗口里做不了」。                         |
+| [私下报告问题](https://github.com/k-ying/dsh-studio-plus/security/advisories/new)               | 关于网关、配对密钥或 supervisor 的任何事。另见 [SECURITY.md](SECURITY.md)。 |
 | [harness 本身](https://github.com/deepseek-ai/deepseek-harness/issues)                      | agent、它的界面、它的模型。这个仓库只是它外面那个窗口。                     |
 
 用中文提 issue 完全没问题，也会用中文回复——

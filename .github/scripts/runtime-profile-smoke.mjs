@@ -6,15 +6,6 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 export const READY_PREFIX = 'dsh web: '
 
-export function assertEmbeddedSessionCookies(cookies) {
-  // Omitted SameSite also defaults to Lax in modern browsers.
-  if (cookies.some((cookie) => !/;\s*SameSite\s*=\s*None\b/iu.test(cookie))) {
-    throw new Error(
-      'This Harness version requires a browser session cookie incompatible with the embedded Studio window. The previous runtime was retained; select the Studio baseline or another compatible version.',
-    )
-  }
-}
-
 /** Parse the exact loopback origin accepted by the native supervisor. */
 export function parseReadyOrigin(line) {
   if (!line.startsWith(READY_PREFIX)) return undefined
@@ -32,8 +23,7 @@ export function parseReadyOrigin(line) {
   ) {
     throw new Error(`harness announced an unsafe URL: ${candidate}`)
   }
-  const token = url.searchParams.get('token')
-  return token ? `${url.origin}/?${new URLSearchParams({ token })}` : url.origin
+  return url.origin
 }
 
 /** Write only the public profile contract that the product itself bootstraps. */
@@ -194,7 +184,7 @@ export async function verifyProfileBoot({
 
   const output = []
   const remember = (stream, line) => {
-    output.push(`[${stream}] ${line.replace(/([?&]token=)[^\s&#]+/gu, '$1[redacted]')}`)
+    output.push(`[${stream}] ${line}`)
     if (output.length > 200) output.shift()
   }
   const stdout = createInterface({ input: child.stdout })
@@ -232,28 +222,10 @@ export async function verifyProfileBoot({
       )
     })
 
-    const headers = { 'user-agent': 'dsh-studio-runtime-contract' }
-    const address = new URL(origin)
-    if (address.searchParams.has('token')) {
-      const exchange = await fetch(address, {
-        redirect: 'manual',
-        signal: AbortSignal.timeout(15_000),
-        headers,
-      })
-      const sessionCookies = exchange.headers.getSetCookie()
-      const cookies = sessionCookies.map((value) => value.split(';')[0])
-      await exchange.body?.cancel()
-      if (exchange.status !== 303 || exchange.headers.get('location') !== '/' || !cookies.length) {
-        throw bootFailure('Harness authentication handshake failed', output)
-      }
-      assertEmbeddedSessionCookies(sessionCookies)
-      headers.cookie = cookies.join('; ')
-    }
-    const response = await fetch(address.origin, {
+    const response = await fetch(origin, {
       method: 'HEAD',
-      redirect: 'error',
       signal: AbortSignal.timeout(15_000),
-      headers,
+      headers: { 'user-agent': 'dsh-studio-runtime-contract' },
     })
     if (!response.ok) {
       throw bootFailure(`readiness endpoint returned HTTP ${response.status}`, output)

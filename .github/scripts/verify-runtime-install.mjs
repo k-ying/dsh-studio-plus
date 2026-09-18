@@ -1,18 +1,26 @@
-import { copyFile, cp, lstat, mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { copyFile, cp, lstat, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { verifyProfileBoot } from './runtime-profile-smoke.mjs'
 
-const expected = '0.1.1-rc.2'
 const expectedPnpm = '11.7.0'
 const directory = await mkdtemp(join(tmpdir(), 'dsh-runtime-contract-'))
 
 try {
   const studioVersion = JSON.parse(await readFile('package.json', 'utf8')).version
-  if (!/^\d+\.\d+\.\d+$/.test(studioVersion ?? '')) {
-    throw new Error('Studio package.json has no stable semantic version')
+  // Fork releases carry a -plusN suffix on the upstream base version.
+  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(studioVersion ?? '')) {
+    throw new Error('Studio package.json has no semantic version')
   }
+  // The contract manifest is the one place that names the pinned Harness
+  // release; the old hardcoded constant went stale the day the fork moved
+  // past upstream's pin.
+  const contractManifest = JSON.parse(
+    await readFile('src-tauri/runtime-contract/package.json', 'utf8'),
+  )
+  const expected = contractManifest.dependencies?.['@deepseek-ai/dsh']
+  if (!expected) throw new Error('runtime contract does not pin @deepseek-ai/dsh')
   const npm =
     process.platform === 'win32'
       ? {
@@ -79,12 +87,38 @@ try {
     'function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen, onClose, busy, t }) {',
     'const parentInert = busy || folderDraft !== null;',
     'if (targetPath !== null) onOpen(targetPath);',
-    'createDirectory: (path, name) => ctx.workspaces.createDirectory(path, name),',
+    'createDirectory: (path, name) => ctx.uiWorkspace.createDirectory(path, name),',
   ]) {
     if (picker.split(seam).length !== 2) {
       throw new Error(`qualified directory picker seam changed: ${seam}`)
     }
   }
+
+  // The Rust installer exempts Studio-launched harnesses from the 0.1.2
+  // browser-session fence at install time (DSH_DESKTOP, which the smoke boot
+  // below also sets). Reproduce that patch here: without it the readiness
+  // probe below would hit the fence's 401 and prove nothing about the boot.
+  const connectionPath = join(
+    directory,
+    'node_modules',
+    '@deepseek-ai',
+    'dsh-client-connection',
+    'lib',
+    'index.js',
+  )
+  const exemptionAnchor =
+    '\tisAuthenticated(request) {\n\t\tconst authority = requestAuthority(request.headers);'
+  const connection = await readFile(connectionPath, 'utf8')
+  if (connection.split(exemptionAnchor).length !== 2) {
+    throw new Error(`browser session exemption seam changed: ${exemptionAnchor}`)
+  }
+  await writeFile(
+    connectionPath,
+    connection.replace(
+      exemptionAnchor,
+      '\tisAuthenticated(request) {\n\t\tif (process.env.DSH_DESKTOP !== void 0) return true;\n\t\tconst authority = requestAuthority(request.headers);',
+    ),
+  )
   await run(process.execPath, [entry, '--help'], { timeout: 120_000 })
   const dshHome = join(directory, 'dsh-home')
   const origin = await verifyProfileBoot({
