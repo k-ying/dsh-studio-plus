@@ -23,10 +23,10 @@ Under 4 MB per installer · [all artifacts and checksums](#install) · [简体�
 
 > **dsh-studio-plus** is a fork of [Moresyl/dsh-studio](https://github.com/Moresyl/dsh-studio)
 > that tracks current Harness releases. Upstream pins `dsh` to the one release it
-> ships against; this fork supports 0.1.2 and lets you pick the release yourself —
-> Settings → Harness runtime lists every published version, preflights the switch
-> against Studio's install-time patches, and refuses a release whose browser
-> sign-in it cannot adapt to.
+> ships against; this fork supports 0.1.2+ and lets you pick the release yourself —
+> the Environment panel lists every published version, installs each candidate into
+> an isolated staging runtime, startup-tests it there, and keeps the previous
+> runtime when the check fails.
 
 For a precise platform and runtime boundary, see the [support matrix](docs/support-matrix.md).
 If startup or plugin installation fails, begin with the [troubleshooting guide](docs/troubleshooting.md).
@@ -57,14 +57,13 @@ qualifies the connection package instead: a harness launched by Studio treats
 loopback callers as authenticated (the exposure 0.1.1 shipped with), while a
 `dsh` started from a terminal keeps the fence exactly as upstream wrote it.
 
-**A release channel instead of a pinned version.** Settings → Harness runtime
-lists every published dsh release and flags newer ones. Switching packs the two
-patched packages from the registry and checks the patch seams first: a release
-whose browser sign-in has moved is refused, and one that merely cannot take the
-native directory picker installs without it. The dependency manifest is a
-template — lockstep `@deepseek-ai/*` packages follow the selected release, and
-the embedded lockfile yields to a fresh resolution for anything but the
-built-in one.
+**A release selector, not a pinned version.** Upstream 0.9.8 adopted this idea:
+the Environment panel lists every published dsh release, installs each candidate
+into an isolated staging runtime, startup-tests it there, and promotes only a
+passing build — a failed check keeps the previous runtime. The fork keeps this
+engine and the exemption above, so any selectable release connects to its
+backend instead of failing with `dsh web authentication required`. The built-in
+release is dsh 0.1.2-rc.1 (upstream still pins 0.1.1-rc.2).
 
 ## Why this exists
 
