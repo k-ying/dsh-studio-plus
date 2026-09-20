@@ -10,9 +10,13 @@ test('readiness accepts only an explicit loopback HTTP port', () => {
   assert.equal(parseReadyOrigin('ordinary output'), undefined)
   assert.equal(
     parseReadyOrigin('dsh web: http://127.0.0.1:52175 (LAN: http://192.0.2.1:52175)'),
-    'http://127.0.0.1:52175/',
+    'http://127.0.0.1:52175',
   )
-  assert.equal(parseReadyOrigin('dsh web: http://localhost:3080/'), 'http://localhost:3080/')
+  assert.equal(parseReadyOrigin('dsh web: http://localhost:3080/'), 'http://localhost:3080')
+  assert.equal(
+    parseReadyOrigin('dsh web: http://127.0.0.1:3080/ignored?token=abc_def&redirect=elsewhere'),
+    'http://127.0.0.1:3080/?token=abc_def',
+  )
 })
 
 test('readiness rejects malformed, remote, secure, and implicit-port origins', () => {

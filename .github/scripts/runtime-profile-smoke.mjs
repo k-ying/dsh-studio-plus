@@ -23,7 +23,8 @@ export function parseReadyOrigin(line) {
   ) {
     throw new Error(`harness announced an unsafe URL: ${candidate}`)
   }
-  return url.href
+  const token = url.searchParams.get('token')
+  return token ? `${url.origin}/?${new URLSearchParams({ token })}` : url.origin
 }
 
 /** Write only the public profile contract that the product itself bootstraps. */
@@ -184,7 +185,7 @@ export async function verifyProfileBoot({
 
   const output = []
   const remember = (stream, line) => {
-    output.push(`[${stream}] ${line}`)
+    output.push(`[${stream}] ${line.replace(/([?&]token=)[^\s&#]+/gu, '$1[redacted]')}`)
     if (output.length > 200) output.shift()
   }
   const stdout = createInterface({ input: child.stdout })
