@@ -23,7 +23,7 @@ export function parseReadyOrigin(line) {
   ) {
     throw new Error(`harness announced an unsafe URL: ${candidate}`)
   }
-  return url.origin
+  return url.href
 }
 
 /** Write only the public profile contract that the product itself bootstraps. */
@@ -222,13 +222,35 @@ export async function verifyProfileBoot({
       )
     })
 
-    const response = await fetch(origin, {
-      method: 'HEAD',
+    // dsh 0.1.2+ requires the announced bootstrap token: the first GET
+    // exchanges it for a session cookie and answers 303. Node's fetch has no
+    // cookie jar, so the cookie is captured from the 303 and replayed by hand,
+    // mirroring what a browser tab (and the same-site shell iframe) does
+    // automatically. Harnesses older than 0.1.2 have no fence: the first GET
+    // answers 200 and there is no cookie to carry.
+    const exchange = await fetch(origin, {
       signal: AbortSignal.timeout(15_000),
       headers: { 'user-agent': 'dsh-studio-runtime-contract' },
+      redirect: 'manual',
     })
-    if (!response.ok) {
-      throw bootFailure(`readiness endpoint returned HTTP ${response.status}`, output)
+    const sessionCookies = exchange.headers.getSetCookie()
+    const cookieHeader = sessionCookies
+      .map((line) => line.split(';', 1)[0])
+      .join('; ')
+    if (!exchange.ok && exchange.status !== 303) {
+      throw bootFailure(`readiness endpoint returned HTTP ${exchange.status}`, output)
+    }
+    const base = new URL(origin)
+    base.search = ''
+    const readiness = await fetch(base.href, {
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        'user-agent': 'dsh-studio-runtime-contract',
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      },
+    })
+    if (!readiness.ok) {
+      throw bootFailure(`readiness endpoint returned HTTP ${readiness.status}`, output)
     }
     const contract = await waitForContract(marker, 5_000, output)
     if (

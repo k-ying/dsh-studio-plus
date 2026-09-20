@@ -9,6 +9,23 @@ pre-1.0 caveat that anything may still move.
 
 ## [Unreleased]
 
+## [0.9.8-plus2] — 2026-09-20
+
+### Changed
+
+- Removed the browser-session exemption that bypassed dsh 0.1.2+ token
+  authentication for Studio-launched harnesses. The harness is no longer
+  modified at install time; its authentication runs exactly as upstream wrote it.
+- The shell serves its compiled frontend from `http://127.0.0.1:<port>` instead
+  of `tauri://localhost`, making the embedded harness iframe same-site (SameSite
+  is scheme + host, ports do not count). WKWebView stores and sends the
+  SameSite=Strict session cookie exactly as a browser tab does — no exemption,
+  no proxy.
+- Tauri capabilities extended with the official `remote` URL pattern
+  (`http://127.0.0.1:*`, `http://localhost:*`) for loopback-origin IPC.
+- Runtime contract schema bumped to 4; previous installs re-qualify on first
+  launch, restoring the harness to its unmodified state.
+
 ## [0.9.8-plus1] — 2026-09-18
 
 ### Changed

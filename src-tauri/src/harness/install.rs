@@ -68,7 +68,7 @@ pub fn selected_version() -> String {
 }
 pub const PNPM_VERSION: &str = "11.7.0";
 pub const PNPM_SPEC: &str = "pnpm@11.7.0";
-const RUNTIME_SCHEMA: u8 = 2;
+const RUNTIME_SCHEMA: u8 = 4;
 const INTEGRATION_PACKAGE: &str = "@moresyl/dsh-studio-integration";
 const OFFICIAL_REGISTRY: &str = "https://registry.npmjs.org/";
 const INSTALL_IDLE_TIMEOUT: Duration = Duration::from_secs(120);
@@ -784,31 +784,10 @@ fn qualify_runtime(target: &Path) -> Result<()> {
         ))
     })?;
 
-    // The 0.1.2 browser-session fence rejects the managed iframe (a webview
-    // frame cannot hold the bootstrap cookie). Exempt Studio-launched
-    // harnesses, which carry DSH_DESKTOP=1; terminal launches keep the fence.
-    // Tolerated as optional: harnesses without the fence (0.1.1) qualify as-is.
-    let connection = target
-        .join("node_modules/@deepseek-ai/dsh-client-connection/lib/index.js");
-    if let Ok(body) =
-        crate::bounded_file::read_string(&connection, crate::bounded_file::CONTROL_BYTES)
-    {
-        const FENCE: &str = "\tisAuthenticated(request) {\n\t\tconst authority = requestAuthority(request.headers);";
-        if body.contains(FENCE)
-            && !body.contains("process.env.DSH_DESKTOP !== void 0")
-        {
-            let exempted = body.replacen(
-                FENCE,
-                "\tisAuthenticated(request) {\n\t\tif (process.env.DSH_DESKTOP !== void 0) return true;\n\t\tconst authority = requestAuthority(request.headers);",
-                1,
-            );
-            std::fs::write(&connection, exempted).map_err(|cause| {
-                Error::Install(format!(
-                    "the desktop connection exemption could not be written: {cause}"
-                ))
-            })?;
-        }
-    }
+    // Authentication is not patched: dsh 0.1.2+ verifies the per-boot token
+    // and issues a SameSite=Strict session cookie, and the shell reaches it
+    // from a same-site loopback origin (see `crate::shell`) so the webview
+    // holds and sends the cookie like a browser tab does.
 
     std::fs::write(
         target.join("dsh-studio-runtime.json"),
@@ -1305,23 +1284,24 @@ mod tests {
         );
         write_runtime(&root, "0.1.5-rc.2", true);
         assert!(
-            !runtime_compatible(&root),
-            "manual npm replacement is not a verified switch"
+            runtime_compatible(&root),
+            "a verified non-builtin selection carries its launcher in the marker"
         );
+        // A stale schema (from the pre-same-site-shell builds) forces
+        // requalification even when every other signal lines up.
         fs::write(
             root.join("dsh-studio-runtime.json"),
-            r#"{"schema":2,"version":"0.1.5-rc.2"}"#,
+            r#"{"schema":3,"version":"0.1.5-rc.2"}"#,
         )
         .unwrap();
         assert!(
             !runtime_compatible(&root),
-            "selected runtime needs its verified launcher"
+            "a stale schema marker is not a verified switch"
         );
-        fs::write(root.join("studio-cli.mjs"), "// test launcher").unwrap();
-        assert!(runtime_compatible(&root));
+        // "latest" never satisfies the exact-version contract.
         fs::write(
             root.join("dsh-studio-runtime.json"),
-            r#"{"schema":2,"version":"latest"}"#,
+            r#"{"schema":4,"version":"latest"}"#,
         )
         .unwrap();
         assert!(!runtime_compatible(&root));
@@ -1386,9 +1366,14 @@ mod tests {
             "__DSH_DESKTOP_PICK_DIRECTORY__ __DSH_DESKTOP_VALIDATE_DIRECTORY__",
         )
         .expect("qualified picker");
+        // Non-builtin selections carry their launcher beside the marker, the
+        // same layout the installer produces after `verify_candidate_boot`.
+        if version != VERSION {
+            fs::write(root.join("studio-cli.mjs"), "// test launcher").expect("studio launcher");
+        }
         fs::write(
             root.join("dsh-studio-runtime.json"),
-            format!(r#"{{"schema":{RUNTIME_SCHEMA}}}"#),
+            format!(r#"{{"schema":{RUNTIME_SCHEMA},"version":"{version}"}}"#),
         )
         .expect("runtime marker");
     }
@@ -1543,7 +1528,14 @@ mod tests {
         assert!(!runtime_compatible(&root));
         write_runtime(&root, VERSION, true);
 
+        // A marker whose version disagrees with the installed package is the
+        // manual-replacement case the contract exists to catch.
         write_runtime(&root, "0.0.1-rc.1", true);
+        fs::write(
+            root.join("node_modules/@deepseek-ai/dsh/package.json"),
+            format!(r#"{{"name":"{PACKAGE}","version":"9.9.9"}}"#),
+        )
+        .expect("tampered manifest");
         assert!(!runtime_compatible(&root));
         write_runtime(&root, VERSION, false);
         let _ = fs::remove_file(root.join("node_modules/@deepseek-ai/dsh/lib/bin.js"));

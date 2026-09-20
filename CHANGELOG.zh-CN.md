@@ -9,6 +9,21 @@
 
 ## [未发布]
 
+## [0.9.8-plus2] — 2026-09-20
+
+### 变更
+
+- 移除了对 Studio 启动的 harness 跳过 dsh 0.1.2+ token 鉴权的浏览器会话豁免。
+  安装时不再修改 harness 文件，鉴权代码完全保持上游原样。
+- 壳现在从 `http://127.0.0.1:<端口>` 伺服编译后的前端（原来用
+  `tauri://localhost` 协议），使内嵌 harness iframe 与之同站（SameSite 只看
+  scheme + host，不看端口）。WKWebView 因此可以像浏览器标签页一样正常存发
+  SameSite=Strict 会话 cookie——无需豁免，无需代理。
+- Tauri capabilities 用官方 `remote` URL 模式（`http://127.0.0.1:*`、
+  `http://localhost:*`）扩展，IPC 在 loopback 源下正常。
+- 运行时合约 schema 升到 4；旧安装首次启动时自动重新 qualify，恢复 harness
+  的未修改状态。
+
 ## [0.9.8-plus1] — 2026-09-18
 
 ### 变更
