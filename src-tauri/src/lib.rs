@@ -102,9 +102,10 @@ pub fn run() {
             // same-site with it: dsh 0.1.2+ issues a SameSite=Strict session
             // cookie that WKWebView only holds and sends inside a same-site
             // frame. `origin()` hands every window the address to load.
-            // `frontendDist` is embedded in the binary for the tauri:// scheme, so it
-// never lands on disk; the bundle's explicit `resources` mapping puts a
-// second copy at Resources/dist/ for the loopback server to read.
+            // `frontendDist` is embedded in the binary for the tauri:// scheme,
+            // so it never lands on disk; the bundle's explicit `resources`
+            // mapping puts a second copy at Resources/dist/ for the loopback
+            // server to read.
             let shell_root = app
                 .path()
                 .resource_dir()
