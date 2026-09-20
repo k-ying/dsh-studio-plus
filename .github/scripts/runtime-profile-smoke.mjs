@@ -223,35 +223,34 @@ export async function verifyProfileBoot({
       )
     })
 
-    // dsh 0.1.2+ requires the announced bootstrap token: the first GET
-    // exchanges it for a session cookie and answers 303. Node's fetch has no
-    // cookie jar, so the cookie is captured from the 303 and replayed by hand,
-    // mirroring what a browser tab (and the same-site shell iframe) does
-    // automatically. Harnesses older than 0.1.2 have no fence: the first GET
-    // answers 200 and there is no cookie to carry.
-    const exchange = await fetch(origin, {
-      signal: AbortSignal.timeout(15_000),
-      headers: { 'user-agent': 'dsh-studio-runtime-contract' },
-      redirect: 'manual',
-    })
-    const sessionCookies = exchange.headers.getSetCookie()
-    const cookieHeader = sessionCookies
-      .map((line) => line.split(';', 1)[0])
-      .join('; ')
-    if (!exchange.ok && exchange.status !== 303) {
-      throw bootFailure(`readiness endpoint returned HTTP ${exchange.status}`, output)
+    const headers = { 'user-agent': 'dsh-studio-runtime-contract' }
+    const address = new URL(origin)
+    if (address.searchParams.has('token')) {
+      const exchange = await fetch(address, {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(15_000),
+        headers,
+      })
+      const sessionCookies = exchange.headers.getSetCookie()
+      const cookies = sessionCookies.map((value) => value.split(';')[0])
+      await exchange.body?.cancel()
+      if (exchange.status !== 303 || exchange.headers.get('location') !== '/' || !cookies.length) {
+        throw bootFailure('Harness authentication handshake failed', output)
+      }
+      // No SameSite constraint is asserted here: the shell is served from the
+      // same loopback site as the Harness (see src-tauri/src/shell.rs), so the
+      // embedded window holds Strict and Lax session cookies exactly like a
+      // browser tab.
+      headers.cookie = cookies.join('; ')
     }
-    const base = new URL(origin)
-    base.search = ''
-    const readiness = await fetch(base.href, {
+    const response = await fetch(address.origin, {
+      method: 'HEAD',
+      redirect: 'error',
       signal: AbortSignal.timeout(15_000),
-      headers: {
-        'user-agent': 'dsh-studio-runtime-contract',
-        ...(cookieHeader ? { cookie: cookieHeader } : {}),
-      },
+      headers,
     })
-    if (!readiness.ok) {
-      throw bootFailure(`readiness endpoint returned HTTP ${readiness.status}`, output)
+    if (!response.ok) {
+      throw bootFailure(`readiness endpoint returned HTTP ${response.status}`, output)
     }
     const contract = await waitForContract(marker, 5_000, output)
     if (
