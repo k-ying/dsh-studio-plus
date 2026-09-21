@@ -5,6 +5,7 @@ mod application_menu;
 mod atomic;
 mod bounded_file;
 mod child_output;
+mod cookies;
 mod desktop;
 mod diagnostics;
 mod error;
@@ -85,6 +86,14 @@ pub fn run() {
             // result is persisted and the first window explains it.
             let _ = plugins::recovery::recover_startup();
             let supervisor = Supervisor::new()?;
+            // Webview cookies for loopback hosts belong to no one session:
+            // dsh plants a fresh one every boot and never retires the last.
+            // Cleared before each harness process, which is the only moment
+            // nothing live is holding one. See `cookies`.
+            supervisor.set_pre_boot(Arc::new({
+                let app = app.handle().clone();
+                move || cookies::sweep_loopback(&app)
+            }));
             let remote = Arc::new(Remote::new());
 
             forward_events(app.handle(), &supervisor, &remote);
@@ -125,29 +134,10 @@ pub fn run() {
             tray::build(app.handle())?;
             desktop::wire(app.handle());
             sessions::attention::wire(app.handle());
-            // dsh plants a fresh, randomly-named auth cookie on 127.0.0.1 at
-            // every boot, each good for thirty days, and nothing removes the
-            // old ones. Cookies ignore ports, so every window request — to
-            // the shell server and to the harness itself — carries the whole
-            // pile, which eventually outgrows even the harness's own header
-            // limit. The pile is dead weight one boot later, so it is swept
-            // here, before the harness starts and plants today's. Off the
-            // main thread because WebView2 deadlocks on a synchronous call.
-            if let Some(window) = app.get_webview_window("main") {
-                std::thread::spawn(move || {
-                    let Ok(cookies) = window.cookies() else {
-                        return;
-                    };
-                    for cookie in cookies {
-                        let loopback = cookie
-                            .domain()
-                            .is_some_and(|domain| domain == "127.0.0.1" || domain == "localhost");
-                        if loopback {
-                            let _ = window.delete_cookie(cookie);
-                        }
-                    }
-                });
-            }
+            // The sweep that matters runs before every harness process (see
+            // the pre-boot hook above); this one catches a pile left by an
+            // earlier launch whose harness never started.
+            cookies::sweep_loopback(app.handle());
             // After the tray, which is the only way back to a window this may
             // decide to leave hidden.
             startup::wire(app.handle());
