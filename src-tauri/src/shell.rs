@@ -30,7 +30,7 @@ use crate::error::{Error, Result};
 
 const ADDRESS: &str = "127.0.0.1";
 /// Bound the headers of a request the shell's own bundle can ask for.
-const REQUEST_BYTES: usize = 4096;
+const REQUEST_BYTES: usize = 65536;
 /// The frontend is compiled, minified and local; anything larger is not this
 /// server talking to itself.
 const BODY_BYTES: usize = crate::bounded_file::CONTROL_BYTES;
