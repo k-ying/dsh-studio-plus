@@ -9,6 +9,22 @@ pre-1.0 caveat that anything may still move.
 
 ## [Unreleased]
 
+## [0.9.8-plus4] — 2026-09-22
+
+### Fixed
+
+- Loopback cookies are swept immediately before each Harness process rather
+  than once at app start. dsh plants a new randomly-named thirty-day auth
+  cookie at every boot and retires none of the earlier ones; a Studio window
+  left open for days restarts the Harness many times inside one process, and
+  the Harness serves from a plain `node:http` server whose default
+  request-header ceiling is 16 KiB — about seventy of those cookies.
+- A Harness origin announced as a host name (`http://localhost:…`) is
+  rewritten to `127.0.0.1`, the address the shell is served from. `localhost`
+  and `127.0.0.1` are different sites to a cookie, so the frame would fall
+  back to a third-party context and the original 401 would return with no
+  other symptom. The bootstrap token survives the rewrite.
+
 ## [0.9.8-plus3] — 2026-09-21
 
 ### Fixed
