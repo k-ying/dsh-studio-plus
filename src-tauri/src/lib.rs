@@ -125,6 +125,29 @@ pub fn run() {
             tray::build(app.handle())?;
             desktop::wire(app.handle());
             sessions::attention::wire(app.handle());
+            // dsh plants a fresh, randomly-named auth cookie on 127.0.0.1 at
+            // every boot, each good for thirty days, and nothing removes the
+            // old ones. Cookies ignore ports, so every window request — to
+            // the shell server and to the harness itself — carries the whole
+            // pile, which eventually outgrows even the harness's own header
+            // limit. The pile is dead weight one boot later, so it is swept
+            // here, before the harness starts and plants today's. Off the
+            // main thread because WebView2 deadlocks on a synchronous call.
+            if let Some(window) = app.get_webview_window("main") {
+                std::thread::spawn(move || {
+                    let Ok(cookies) = window.cookies() else {
+                        return;
+                    };
+                    for cookie in cookies {
+                        let loopback = cookie
+                            .domain()
+                            .is_some_and(|domain| domain == "127.0.0.1" || domain == "localhost");
+                        if loopback {
+                            let _ = window.delete_cookie(cookie);
+                        }
+                    }
+                });
+            }
             // After the tray, which is the only way back to a window this may
             // decide to leave hidden.
             startup::wire(app.handle());
