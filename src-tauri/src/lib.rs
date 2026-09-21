@@ -134,10 +134,6 @@ pub fn run() {
             tray::build(app.handle())?;
             desktop::wire(app.handle());
             sessions::attention::wire(app.handle());
-            // The sweep that matters runs before every harness process (see
-            // the pre-boot hook above); this one catches a pile left by an
-            // earlier launch whose harness never started.
-            cookies::sweep_loopback(app.handle());
             // After the tray, which is the only way back to a window this may
             // decide to leave hidden.
             startup::wire(app.handle());

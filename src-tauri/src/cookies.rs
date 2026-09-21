@@ -12,8 +12,9 @@
 //! The pile is dead weight one boot later, so it is swept immediately before
 //! each harness process is spawned: the previous session is gone, the next has
 //! not been minted, and nothing is holding state that the sweep could take
-//! away. Sweeping at app start alone is not enough — a Studio window left open
-//! for days restarts the harness many times inside one process.
+//! away. That is the only moment it is safe, and it is also the only moment it
+//! is needed — a Studio window left open for days restarts the harness many
+//! times inside one process.
 
 use tauri::{AppHandle, Manager};
 
