@@ -9,6 +9,25 @@ pre-1.0 caveat that anything may still move.
 
 ## [Unreleased]
 
+## [0.9.8-plus3] — 2026-09-21
+
+### Fixed
+
+- The shell server now drains the request head instead of bounding it (only the
+  request line is kept; everything else is discarded; 1 MB backstop). dsh plants
+  a fresh, randomly-named, thirty-day auth cookie on 127.0.0.1 at every boot, and
+  cookies ignore ports — after a day of restarts the request head outgrew the old
+  4096-byte buffer, the server closed the connection mid-request, WebKit reported
+  NSURLErrorNetworkConnectionLost (-1005), and the app would not start.
+- Stale 127.0.0.1/localhost cookies are swept from the webview at startup, before
+  the harness boots — the same pile otherwise reaches the harness itself, whose
+  Node HTTP server rejects heads past 16 KB.
+- dshmarket's self-restart is disabled via the Studio integration patch layer
+  (`allowRestart: false`). Its one-click restart spawned a detached dsh process
+  the supervisor never parented, stranding one more instance sharing the same
+  data directory per plugin operation (which wedged model/session switching).
+  The market's restart banner now points at a manual restart, which Studio owns.
+
 ## [0.9.8-plus2] — 2026-09-20
 
 ### Changed
