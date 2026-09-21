@@ -11,3 +11,10 @@
       name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
     - id: dsh-studio-client-integration
       name: '@moresyl/dsh-studio-integration'
+# dshmarket's one-click self-restart spawns a detached replacement the
+# supervisor never sees, stranding one more dsh instance on the profile per
+# use. Studio owns harness restarts, so the market's is off: its banner then
+# points the user at a manual restart, which Studio performs.
+- id: dsh-market
+  config:
+    allowRestart: false
