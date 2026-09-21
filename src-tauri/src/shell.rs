@@ -28,7 +28,7 @@ use std::time::Duration;
 
 use crate::error::{Error, Result};
 
-const ADDRESS: &str = "127.0.0.1";
+pub(crate) const ADDRESS: &str = "127.0.0.1";
 /// Backstop for a head that never terminates. The head is drained and
 /// discarded, so this only bounds damage from a client that streams forever;
 /// it is nowhere near any realistic browser head, cookies included.
