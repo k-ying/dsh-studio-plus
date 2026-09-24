@@ -9,166 +9,44 @@ pre-1.0 caveat that anything may still move.
 
 ## [Unreleased]
 
-## [0.9.8-plus4] — 2026-09-22
-
-### Fixed
-
-- Loopback cookies are swept immediately before each Harness process rather
-  than once at app start. dsh plants a new randomly-named thirty-day auth
-  cookie at every boot and retires none of the earlier ones; a Studio window
-  left open for days restarts the Harness many times inside one process, and
-  the Harness serves from a plain `node:http` server whose default
-  request-header ceiling is 16 KiB — about seventy of those cookies.
-- A Harness origin announced as a host name (`http://localhost:…`) is
-  rewritten to `127.0.0.1`, the address the shell is served from. `localhost`
-  and `127.0.0.1` are different sites to a cookie, so the frame would fall
-  back to a third-party context and the original 401 would return with no
-  other symptom. The bootstrap token survives the rewrite.
-
-## [0.9.8-plus3] — 2026-09-21
-
-### Fixed
-
-- The shell server now drains the request head instead of bounding it (only the
-  request line is kept; everything else is discarded; 1 MB backstop). dsh plants
-  a fresh, randomly-named, thirty-day auth cookie on 127.0.0.1 at every boot, and
-  cookies ignore ports — after a day of restarts the request head outgrew the old
-  4096-byte buffer, the server closed the connection mid-request, WebKit reported
-  NSURLErrorNetworkConnectionLost (-1005), and the app would not start.
-- Stale 127.0.0.1/localhost cookies are swept from the webview at startup, before
-  the harness boots — the same pile otherwise reaches the harness itself, whose
-  Node HTTP server rejects heads past 16 KB.
-- dshmarket's self-restart is disabled via the Studio integration patch layer
-  (`allowRestart: false`). Its one-click restart spawned a detached dsh process
-  the supervisor never parented, stranding one more instance sharing the same
-  data directory per plugin operation (which wedged model/session switching).
-  The market's restart banner now points at a manual restart, which Studio owns.
-
-## [0.9.8-plus2] — 2026-09-20
+## [0.9.9] — 2026-09-22
 
 ### Changed
 
-- Removed the browser-session exemption that bypassed dsh 0.1.2+ token
-  authentication for Studio-launched harnesses. The harness is no longer
-  modified at install time; its authentication runs exactly as upstream wrote it.
-- The shell serves its compiled frontend from `http://127.0.0.1:<port>` instead
-  of `tauri://localhost`, making the embedded harness iframe same-site (SameSite
-  is scheme + host, ports do not count). WKWebView stores and sends the
-  SameSite=Strict session cookie exactly as a browser tab does — no exemption,
-  no proxy.
-- Tauri capabilities extended with the official `remote` URL pattern
-  (`http://127.0.0.1:*`, `http://localhost:*`) for loopback-origin IPC.
-- Runtime contract schema bumped to 4; previous installs re-qualify on first
-  launch, restoring the harness to its unmodified state.
+- Serve the Studio shell from the loopback origin so Harness `0.1.2-rc.1` can authenticate in the embedded window without weakening its cookie policy.
+- Align the main chrome, pane headings, buttons, and status text to consistent UI type roles; give actionable controls restrained press feedback and touch-friendly behavior.
 
-## [0.9.8-plus1] — 2026-09-18
+### Fixes and security
 
-### Changed
+- Preserve same-site navigation and bound the loopback cookie header; support both generations of the Studio integration client.
+- Keep Rust-only checks working from a clean checkout without a generated frontend bundle, and cover that path in CI.
+- Replace the obsolete incompatible-authentication CI assertion with a real isolated install and Profile boot of Harness `0.1.2-rc.1`.
 
-- Adopted the upstream 0.9.8 Harness release selector: published dsh versions are
-  listed in the Environment panel, each candidate is installed into an isolated
-  staging runtime, startup-tested there, and only promoted after the boot check
-  passes — a failed test keeps the previous runtime. The selector engine replaces
-  this fork's 0.9.22 channel implementation; the built-in release moves to
-  dsh 0.1.2-rc.1 (upstream still pins 0.1.1-rc.2).
-- Kept the fork's browser-session exemption: the 0.1.2+ authentication fence
-  rejects the embedded Studio window because a webview frame cannot hold the
-  bootstrap cookie (SameSite=Strict). The managed install exempts
-  Studio-launched harnesses (`DSH_DESKTOP=1`) from the fence at install time;
-  terminal launches keep token authentication. Upstream's smoke check for
-  exchangeable `SameSite=None` cookies is replaced by this exemption, because
-  published dsh releases issue Strict cookies and would always fail that check.
-- The Studio integration client now works with both Harness generations: the
-  0.1.1 direct `ctx.workspaces` calls and the 0.1.2 Result-wrapped services with
-  `uiWorkspace.startSession`, chosen by feature detection.
-- Carried the fork CI over: release assets target this fork's updater endpoint,
-  the quality gate and runtime smoke scripts read the pinned version from the
-  runtime contract instead of a stale constant, and unit tests run against an
-  isolated data root so a developer-pinned release cannot turn suites red.
+### Verification
 
-## [0.9.7-plus1] — 2026-09-14
+- Windows isolated installation and real Profile boot of Harness `0.1.2-rc.1` passed; frontend build, lint, 269 frontend tests, 51 packaging tests, and the Rust workspace tests passed locally.
+- CI tests the selected Harness on Linux, Windows, and macOS. No physical macOS device was available for validation.
 
-### Changed
-
-- Merged upstream 0.9.3 through 0.9.7: refreshed Tauri dialog/opener plugins,
-  the Node 24-compatible CI actions, task-oriented onboarding docs, the support
-  matrix and troubleshooting guides. The Harness release channel, preflight and
-  0.1.2 support from 0.9.21–0.9.22 are unaffected — upstream still pins
-  dsh 0.1.1-rc.2, so the built-in release here remains 0.1.2-rc.1.
-
-## [0.9.7-plus1] — 2026-09-14
-
-### Changed
-
-- Merged upstream 0.9.3 through 0.9.7: refreshed Tauri dialog/opener plugins,
-  the Node 24-compatible CI actions, task-oriented onboarding docs, the support
-  matrix and troubleshooting guides. The Harness release channel, preflight and
-  0.1.2 support from 0.9.21–0.9.22 are unaffected — upstream still pins
-  dsh 0.1.1-rc.2, so the built-in release here remains 0.1.2-rc.1.
-
-## [0.9.7-plus1] — 2026-09-14
-
-### Changed
-
-- Merged upstream 0.9.3 through 0.9.7: refreshed Tauri dialog/opener plugins,
-  the Node 24-compatible CI actions, task-oriented onboarding docs, the support
-  matrix and troubleshooting guides. The Harness release channel, preflight and
-  0.1.2 support from 0.9.21–0.9.22 are unaffected — upstream still pins
-  dsh 0.1.1-rc.2, so the built-in release here remains 0.1.2-rc.1.
-
-## [0.9.22] — 2026-09-10
+## [0.9.8] — 2026-09-15
 
 ### Added
 
-- The Harness release is no longer compiled in. Settings → Harness runtime lists
-  every published dsh release (refreshed from the npm registry on demand), shows
-  an update badge when `dist-tags/latest` moves past the installed release, and
-  switches through the ordinary supervised install flow.
-- Version switches are preflighted: the two packages Studio patches are packed
-  from the registry and their seams are checked before anything is installed. A
-  release whose browser-session fence has moved is refused; a release that merely
-  cannot take the optional directory-picker enhancement installs without it, with
-  the skipped group recorded in the runtime marker and tolerated by the contract.
-- A pinned-but-not-installed state is shown next to the selector, so a failed or
-  interrupted switch is visible instead of silent.
+- Query official npm Harness releases and install an exact selection, including upgrades and downgrades, gated by an isolated install and real Profile startup.
 
-### Changed
+### Fixes and security
 
-- The embedded runtime manifest is now a template: `@deepseek-ai/*` packages that
-  follow the Harness in lockstep are rewritten to the selected release,
-  independently versioned packages keep their pins, and non-built-in releases
-  resolve their own dependency graph instead of using the embedded lockfile.
-- The managed-install guard, the install journal and crash recovery track the
-  channel-selected release rather than the built-in one.
-- Plugin compatibility is evaluated against the installed Harness release, not
-  the one this build shipped against.
+- Upgrade Rustls to `0.23.45` to fix TLS handshake encryption-level boundary validation (`RUSTSEC-2026-0285`).
+- Pin Harness family members and required peers to the selected version to prevent mixed-release exports and missing services.
+- Preserve verified runtime selection and legacy markers; failed candidates retain the current runtime, and Repair targets the last verified selection.
+- Serialize runtime replacement against plugin mutations and surface retryable catalog errors through the shared error dialog.
+- Verify browser authentication and reject strict-cookie releases incompatible with the embedded window. `0.1.2-rc.1` and `0.1.5-rc.2` currently cannot activate; upstream authentication remains enabled.
+- Support exported CLI entry points on older Node versions without `import.meta.main`; preserve navigation tokens while redacting logs and tray labels.
 
-### Fixed
+### Verification
 
-- Preflight shares the installer's npm-capable Node selection; a selected Node
-  without npm no longer fails the switch before it starts.
-- The channel selector shows the built-in release when nothing is pinned, rather
-  than whatever the registry lists first.
+- Tested Windows cold installation of `0.1.1-rc.2`, real Profile boot after selecting `0.1.1-rc.1`, and the embedded strict-cookie failure in a browser.
+- Added selected-version startup and incompatible-version rejection to the three-platform CI matrix. No physical macOS device was available.
 
-## [0.9.21] — 2026-09-07
-
-### Added
-
-- Harness 0.1.2 support. The 0.1.2 web surface exchanges a per-boot launch token
-  for a SameSite cookie that the shell's cross-site frame can never present back,
-  so the installer qualifies the connection package: a harness launched by Studio
-  (`DSH_DESKTOP`) treats loopback callers as authenticated — the exposure 0.1.1
-  shipped with. A `dsh` launched from a terminal keeps the fence.
-
-### Changed
-
-- The runtime contract targets `@deepseek-ai/dsh` 0.1.2-rc.1, including the ten
-  packages that became peer dependencies in 0.1.2.
-- The Studio integration follows the 0.1.2 workspace architecture:
-  `dsh-client-runtime` is gone, workspace creation goes through
-  `dsh-api-workspace-controller`, and session start moved to
-  `dsh-client-ui-workspace`.
-- Existing runtimes re-qualify themselves on first launch (runtime schema 3).
 ### Documentation
 
 - Reworked the English and Chinese documentation landing pages into task-oriented paths, with a five-minute first-run guide, recovery guidance, and a more useful issue-reporting checklist.
@@ -1045,10 +923,7 @@ CI but have not been run by a human yet.
 - **Release pipeline.** A tagged version is built by CI for Windows x64, Linux
   x64, macOS Apple Silicon and macOS Intel.
 
-[Unreleased]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.7-plus1...HEAD
-[0.9.7-plus1]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.22...v0.9.7-plus1
-[0.9.22]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.21...v0.9.22
-[0.9.21]: https://github.com/k-ying/dsh-studio-plus/compare/v0.9.2...v0.9.21
+[Unreleased]: https://github.com/Moresyl/dsh-studio/compare/v0.9.7...HEAD
 [0.9.4]: https://github.com/Moresyl/dsh-studio/compare/v0.9.2...v0.9.4
 [0.9.2]: https://github.com/Moresyl/dsh-studio/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/Moresyl/dsh-studio/compare/v0.9.0...v0.9.1

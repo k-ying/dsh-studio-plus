@@ -24,12 +24,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
-          # This job never runs pnpm install, so there is no store for
-          # setup-node v5's default package-manager cache to save; its post
-          # step would fail the job over the missing directory.
           package-manager-cache: false
-      - name: Initialize pnpm store
-        run: pnpm store path
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@cargo-audit
       - name: Audit production JavaScript dependencies
@@ -53,12 +48,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
-          # This job never runs pnpm install, so there is no store for
-          # setup-node v5's default package-manager cache to save; its post
-          # step would fail the job over the missing directory.
           package-manager-cache: false
-      - name: Initialize pnpm store
-        run: pnpm store path
       - run: node .github/scripts/verify-runtime-install.mjs
 
   test:
@@ -92,6 +82,9 @@ jobs:
           sudo apt-get update -o Acquire::Retries=3
           sudo apt-get install -y libayatana-appindicator3-dev librsvg2-dev libwebkit2gtk-4.1-dev
 
+      - name: Cold Rust check without generated frontend bundle
+        run: cargo check --manifest-path src-tauri/Cargo.toml --workspace
+
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm build
@@ -106,6 +99,14 @@ jobs:
         run: pnpm test:coverage
       - name: Rust and LAN remote regression
         run: cargo test --manifest-path src-tauri/Cargo.toml --workspace
+      - name: Selected Harness downgrade and real profile boot
+        env:
+          DSH_TEST_VERSION: 0.1.1-rc.1
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib selected_runtime_cold_install_and_boot -- --ignored --nocapture
+      - name: Boot Harness 0.1.2 with embedded authentication
+        env:
+          DSH_TEST_VERSION: 0.1.2-rc.1
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib selected_runtime_cold_install_and_boot -- --ignored --nocapture
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets -- -D warnings
 
   rust-coverage:
